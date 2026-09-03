@@ -10,7 +10,8 @@ for k, v in [('__W__', d['w']), ('__H__', d['h']),
              ('__IW__', ins['w']), ('__IH__', ins['h']),
              ('__ILX__', round(ins['x'] + 9, 1)), ('__ILY__', round(ins['y'] + ins['h'] - 10, 1))]:
     t = t.replace(k, str(v))
-t = t.replace('__DATA__', json.dumps({'prefs': d['prefs']}, ensure_ascii=False, separators=(',', ':')))
+# the view controller reads MAP.w / MAP.h / MAP.inset, so ship the whole record
+t = t.replace('__DATA__', json.dumps(d, ensure_ascii=False, separators=(',', ':')))
 left = re.findall(r'__[A-Z]+__', t)
 assert not left, 'unfilled placeholders: %s' % left
 out = os.path.join(here, '..', 'index.html')
