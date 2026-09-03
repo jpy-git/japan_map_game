@@ -81,9 +81,8 @@
   .maptip.on{opacity:1; transform:translate(-50%,0)}
   .maptip b{font-size:15px}
   .maptip span{color:var(--dim); font-size:12px}
-  /* ---------- sheet grip (mobile only) ---------- */
+  /* ---------- sheet header, chips only (mobile) ---------- */
   .sheetgrip{display:none}
-  .grip{display:block; width:36px; height:4px; border-radius:2px; background:#3a4356; margin:0 auto}
   /* ---------- panel ---------- */
   .panel{background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-width:0}
   .phead{padding:20px 22px 16px; border-bottom:1px solid var(--line)}
@@ -162,9 +161,9 @@
            border-left:0; border-top:1px solid var(--line); border-radius:18px 18px 0 0;
            box-shadow:0 -10px 30px rgba(0,0,0,.45); z-index:5;
            transition:height .22s cubic-bezier(.4,0,.2,1)}
-    .panel.dragging{transition:none}
-    .sheetgrip{display:block; flex:none; padding:9px 16px 2px; touch-action:none; cursor:grab}
-    .chipslot{display:flex; gap:8px; align-items:center; margin-top:9px}
+    .panel.noanim{transition:none}
+    .sheetgrip{display:block; flex:none; padding:11px 16px 0}
+    .chipslot{display:flex; gap:8px; align-items:center}
     .chip{height:36px; padding:0 14px}
     .phead{display:none}
     .stats{padding:2px 16px 0; border-bottom:0}
@@ -183,7 +182,7 @@
     .foot .kbhint{display:none}
     /* peek: nothing but the answer line, docked above the keyboard */
     .panel.peek .stats, .panel.peek .bar, .panel.peek .prompt,
-    .panel.peek .fb, .panel.peek .foot, .panel.peek .chipslot{display:none}
+    .panel.peek .fb, .panel.peek .foot, .panel.peek .sheetgrip{display:none}
     .panel.peek .body{padding-top:8px; position:relative}
     .panel.peek #answer{width:calc(100% - 96px)}
     .panel.peek .row{position:absolute; top:8px; right:16px; margin:0}
@@ -242,7 +241,7 @@
   </div>
 
   <div class="panel">
-    <div class="sheetgrip" id="sheetgrip"><span class="grip"></span>
+    <div class="sheetgrip" id="sheetgrip">
       <div class="chipslot" id="chipslot"></div></div>
     <div class="phead">
       <div class="title" id="hTitle">都道府県クイズ</div>
@@ -670,7 +669,8 @@ function questionBox(){
 // and never over a gesture the player made themselves.
 function autoFrame(anim){
   if (!view || userFramed || current === null) return;
-  const tight = isPhone() && (snap === 'peek' || wrapBox().height < viewportH() * 0.45);
+  const tight = isPhone() && (snap === 'peek' || document.activeElement === input ||
+                              wrapBox().height < viewportH() * 0.45);
   const bb = tight ? questionBox() : null;
   const to = bb ? frameOn(bb, 0.12) : home.slice();
   if (anim === false) { view = to; applyView(); } else easeTo(to, 320);
@@ -693,7 +693,8 @@ function relayout(){
 let mode = 'pref';           // 'pref' = name the prefecture, 'region' = name the region
 let region = ALL;            // scope filter, prefecture mode only
 let queue = [], current = null, idx = 0, score = 0, streak = 0, best = 0;
-let attempts = 0, awaitingNext = false, missed = [], hintLevel = 0;
+let attempts = 0, awaitingNext = false, missed = [], hintLevel = 0, nextTimer = 0;
+const CORRECT_MS = 800;      // how long a right answer stays on screen before the next one
 let results = {};            // key -> 'correct' | 'wrong', kept for the whole round
 
 const $ = s => document.querySelector(s);
@@ -746,7 +747,8 @@ function startRound(items){
   next();
 }
 
-function next(){
+function next(keepFocus){
+  clearTimeout(nextTimer); nextTimer = 0;
   if (idx >= queue.length) return finish();
   current = queue[idx];
   attempts = 0; awaitingNext = false; hintLevel = 0;
@@ -755,8 +757,9 @@ function next(){
   paint(); placeRing('');
   userFramed = false; autoFrame();
   input.value = ''; input.className = ''; input.disabled = false;
-  // on a phone the whole map IS the question — don't summon the keyboard over it
-  if (!isPhone()) input.focus();
+  // a fresh round opens on the map — the whole country IS the first question, so don't
+  // summon the keyboard over it. Rolling on mid-round keeps the box (and keyboard) live.
+  if (!isPhone() || keepFocus) input.focus();
   fb.innerHTML = '';
   $('#submitBtn').textContent = '答える';
   updateStats();
@@ -794,8 +797,13 @@ function card(k, extra){
     '<div class="meta">' + meta + '</div></div>' + (extra || '');
 }
 
+function advance(){
+  clearTimeout(nextTimer); nextTimer = 0;
+  idx++; next(true);
+}
+
 function submit(){
-  if (awaitingNext){ idx++; next(); return; }
+  if (awaitingNext){ advance(); return; }
   const raw = input.value.trim();
   if (!raw) return;
   if (accepted(current).has(norm(raw))) {
@@ -803,9 +811,12 @@ function submit(){
     results[current] = 'correct';
     awaitingNext = true;
     paint(); placeRing('ok');
-    input.className = 'ok'; input.disabled = true;
+    input.className = 'ok';
     fb.innerHTML = '<div class="verdict ok">✓ 正解！ Correct</div>' + card(current);
-    endQuestion();
+    $('#hintBtn').disabled = true; $('#revealBtn').disabled = true;
+    // right answers roll straight on: the box keeps focus, so the keyboard never drops
+    // and the map re-frames on the next question without another tap
+    nextTimer = setTimeout(advance, CORRECT_MS);
   } else {
     attempts++; streak = 0;
     input.classList.remove('shake'); void input.offsetWidth; input.className = 'bad shake';
@@ -857,6 +868,7 @@ function hint(){
 
 function finish(){
   current = null;
+  input.blur();
   ring.setAttribute('r', 0);
   paint();
   userFramed = false;
@@ -1101,6 +1113,15 @@ function setSnap(name){
   syncLayout();
 }
 
+// the sheet's bottom edge follows the keyboard instantly, so animating its height on top
+// of that is what made the answer box hop up and back down before settling
+function instantly(fn){
+  panel.classList.add('noanim');
+  fn();
+  void panel.offsetHeight;                 // land the new height in this same frame
+  requestAnimationFrame(() => panel.classList.remove('noanim'));
+}
+
 // the keyboard opening is the signal to collapse, not focus — a blur while tapping
 // a button would otherwise reflow the sheet out from under the tap
 if (vv){
@@ -1110,7 +1131,7 @@ if (vv){
     if (kb > 100 && snap !== 'peek') { snap = 'peek'; }
     else if (kb <= 100 && snap === 'peek') { snap = 'half'; }
     if (vv.offsetTop) window.scrollTo(0, 0);
-    syncLayout();
+    instantly(syncLayout);
   };
   vv.addEventListener('resize', onVV);
   vv.addEventListener('scroll', onVV);
@@ -1121,37 +1142,12 @@ if (vv){
 for (const id of ['#submitBtn', '#hintBtn', '#revealBtn'])
   $(id).addEventListener('mousedown', e => e.preventDefault());   // tapping must not blur
 
-// drag the grip between peek / half / full
-let drag = null;
-$('#sheetgrip').addEventListener('pointerdown', e => {
-  // the chips live in the grip on a phone — capturing here would swallow their taps
-  if (!isPhone() || e.target.closest('.chipslot')) return;
-  $('#sheetgrip').setPointerCapture(e.pointerId);
-  drag = {y: e.clientY, h: panel.getBoundingClientRect().height};
-  panel.classList.add('dragging');
-});
-$('#sheetgrip').addEventListener('pointermove', e => {
-  if (!drag) return;
-  const h = viewportH();
-  const next = Math.min(Math.max(drag.h - (e.clientY - drag.y), PEEK), h - 150);
-  app.style.setProperty('--sheet', next + 'px');
-  app.style.setProperty('--band', (h - next) + 'px');
-  relayout();
-});
-$('#sheetgrip').addEventListener('pointerup', e => {
-  if (!drag) return;
-  const h = viewportH(), kb = keyboardH();
-  const now = panel.getBoundingClientRect().height;
-  let best = 'half', d = Infinity;
-  for (const name of ['peek', 'half', 'full']){
-    const dd = Math.abs(snapHeight(name, h, kb) - now);
-    if (dd < d){ d = dd; best = name; }
-  }
-  drag = null;
-  panel.classList.remove('dragging');
-  snap = best;
-  syncLayout();
-});
+// The sheet is driven by the game and by the keyboard, never dragged by hand: a sheet
+// raised over the map had no way back down while the keyboard pinned it there.
+
+// Reaching for the answer box is the cue to frame the question — waiting for the
+// keyboard to resize the viewport missed the very first one on some browsers.
+input.addEventListener('focus', () => { if (isPhone()) autoFrame(); });
 
 phoneMQ.addEventListener('change', syncLayout);
 window.addEventListener('resize', syncLayout);
