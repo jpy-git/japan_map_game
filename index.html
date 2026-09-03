@@ -150,7 +150,7 @@
   @media (max-width:720px) and (min-height:501px){
     html,body{overflow:hidden; overscroll-behavior:none}
     .app{display:block; height:100dvh}
-    .mapwrap{position:fixed; top:0; left:0; right:0; height:var(--band,52vh);
+    .mapwrap{position:fixed; top:var(--vtop,0px); left:0; right:0; height:var(--band,52vh);
              padding-top:env(safe-area-inset-top,0px)}
     .mapui{right:12px; bottom:12px}
     .mapui button{width:44px; height:44px}
@@ -159,7 +159,7 @@
     .maptip{bottom:auto; top:calc(12px + env(safe-area-inset-top,0px))}
     .panel{position:fixed; left:0; right:0; bottom:var(--kb,0px); height:var(--sheet,44vh);
            border-left:0; border-top:1px solid var(--line); border-radius:18px 18px 0 0;
-           box-shadow:0 -10px 30px rgba(0,0,0,.45); z-index:5;
+           box-shadow:0 -10px 30px rgba(0,0,0,.45); z-index:5; touch-action:none;
            transition:height .22s cubic-bezier(.4,0,.2,1)}
     .panel.noanim{transition:none}
     .sheetgrip{display:block; flex:none; padding:11px 16px 0}
@@ -172,7 +172,7 @@
     .snum{font-size:15px}
     .slab{margin-top:0}
     .bar{margin:0 16px; border-radius:2px}
-    .body{padding:14px 16px 0}
+    .body{padding:14px 16px 0; touch-action:pan-y}   /* the card scrolls, the sheet doesn't */
     input[type=text]{font-size:17px; height:52px; padding:0 15px}
     button{min-height:46px}
     .row{gap:9px}
@@ -183,7 +183,7 @@
     /* peek: nothing but the answer line, docked above the keyboard */
     .panel.peek .stats, .panel.peek .bar, .panel.peek .prompt,
     .panel.peek .fb, .panel.peek .foot, .panel.peek .sheetgrip{display:none}
-    .panel.peek .body{padding-top:8px; position:relative}
+    .panel.peek .body{padding:8px 16px 10px; position:relative}
     .panel.peek #answer{width:calc(100% - 96px)}
     .panel.peek .row{position:absolute; top:8px; right:16px; margin:0}
     .panel.peek .row #hintBtn, .panel.peek .row #revealBtn{display:none}
@@ -1067,7 +1067,7 @@ const panel = document.querySelector('.panel');
 const chipbar = $('#chipbar');
 const phoneMQ = window.matchMedia('(max-width:720px) and (min-height:501px)');
 const vv = window.visualViewport;
-const PEEK = 104;
+const PEEK = 72;             // 8px + the 52px box + 10px — .panel.peek .body, plus its border
 let snap = 'half';
 
 const safeProbe = document.createElement('div');
@@ -1092,13 +1092,14 @@ function syncLayout(){
   const host = phone ? $('#chipslot') : $('#chipHome');
   if (chipbar.parentNode !== host) host.appendChild(chipbar);
   if (!phone){
-    for (const v of ['--band','--sheet','--kb']) app.style.removeProperty(v);
+    for (const v of ['--band','--sheet','--kb','--vtop']) app.style.removeProperty(v);
     panel.classList.remove('peek');
     relayout();
     return;
   }
   const h = viewportH(), kb = keyboardH();
   const sheet = snapHeight(snap, h, kb);
+  app.style.setProperty('--vtop', (vv ? vv.offsetTop : 0) + 'px');
   app.style.setProperty('--kb', kb + 'px');
   app.style.setProperty('--sheet', sheet + 'px');
   app.style.setProperty('--band', (h - sheet) + 'px');
@@ -1148,6 +1149,14 @@ for (const id of ['#submitBtn', '#hintBtn', '#revealBtn'])
 // Reaching for the answer box is the cue to frame the question — waiting for the
 // keyboard to resize the viewport missed the very first one on some browsers.
 input.addEventListener('focus', () => { if (isPhone()) autoFrame(); });
+
+// The map is a fixed window you pan and zoom *inside*; dragging the sheet, or any
+// bare ground beside it, used to scroll the whole page out from under the keyboard.
+// Only the answer card, which can outgrow its sheet, still scrolls.
+document.addEventListener('touchmove', e => {
+  if (!e.cancelable || (e.target.closest && e.target.closest('.body'))) return;
+  e.preventDefault();      // the map's own pan/pinch runs on pointer events, untouched
+}, {passive: false});
 
 phoneMQ.addEventListener('change', syncLayout);
 window.addEventListener('resize', syncLayout);
