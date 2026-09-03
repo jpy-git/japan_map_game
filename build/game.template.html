@@ -53,6 +53,7 @@
   #ring.pulse{animation:pulse 1.9s ease-in-out infinite}
   #ring.faded{opacity:0 !important}
   .maptop{position:absolute; top:14px; left:14px; right:14px; display:flex; gap:8px; align-items:center; pointer-events:none}
+  .chipbar{display:flex; gap:8px; align-items:center; width:100%}
   .chip{pointer-events:auto; background:rgba(255,255,255,.86); border:1px solid #a7c3d5; color:#3a5a72;
         border-radius:999px; padding:6px 13px; font-size:12px; cursor:pointer; backdrop-filter:blur(8px);
         box-shadow:0 1px 3px rgba(20,50,70,.12); white-space:nowrap}
@@ -174,9 +175,22 @@
            box-shadow:0 -10px 30px rgba(0,0,0,.45); z-index:5; touch-action:none;
            transition:height .22s cubic-bezier(.4,0,.2,1)}
     .panel.noanim{transition:none}
-    .sheetgrip{display:block; flex:none; padding:11px 16px 0}
-    .chipslot{display:flex; gap:8px; align-items:center; overflow-x:auto; scrollbar-width:none}
+    .sheetgrip{display:block; flex:none; padding:11px 0 0; position:relative}
+    /* the row is wider than the phone, so it scrolls: the sheet sets touch-action:none
+       to stop itself being dragged, and the chips have to opt back in to a sideways
+       swipe or the last chip is stranded off-screen */
+    .chipslot{display:flex; gap:8px; align-items:center; overflow-x:auto; scrollbar-width:none;
+              touch-action:pan-x; padding-left:16px; -webkit-overflow-scrolling:touch}
+    /* padding on a flex scroller is dropped at the far end, so the trailing gap is a
+       spacer item — without it the last chip sits flush against the screen edge */
+    .chipslot .chipbar::after{content:''; flex:none; width:8px; height:1px}
     .chipslot::-webkit-scrollbar{display:none}
+    /* a fade on the edge that still has chips behind it, so the swipe is discoverable */
+    .sheetgrip::before, .sheetgrip::after{content:''; position:absolute; top:0; bottom:0; width:22px;
+              pointer-events:none; opacity:0; transition:opacity .15s ease; z-index:1}
+    .sheetgrip::before{left:0; background:linear-gradient(90deg,var(--panel),transparent)}
+    .sheetgrip::after{right:0; background:linear-gradient(270deg,var(--panel),transparent)}
+    .sheetgrip.more-l::before, .sheetgrip.more-r::after{opacity:1}
     .chip{height:36px; padding:0 14px; flex:none}
     .phead{display:none}
     .stats{padding:2px 16px 0; border-bottom:0}
@@ -223,7 +237,7 @@
 <div class="app">
   <div class="mapwrap">
     <div class="maptop" id="chipHome"></div>
-    <div class="chipbar" id="chipbar" style="display:flex; gap:8px; align-items:center; width:100%">
+    <div class="chipbar" id="chipbar">
       <button class="chip country" id="countryBtn">🇯🇵 日本</button>
       <button class="chip mode" id="modeBtn">都道府県を当てる</button>
       <button class="chip" id="scopeBtn">全国 · all Japan</button>
@@ -1642,6 +1656,7 @@ function applyStrings(){
   $('#prompt').innerHTML = isRegion ? t.promptRegion : t.promptUnit;
   input.placeholder = isRegion ? t.phRegion : t.phUnit;
   $('#namesBtn').textContent = showNames ? t.hideNames : t.showNames;
+  $('#revealBtn').textContent = t.reveal;
   $('#zInBtn').title = t.zoomIn;
   $('#zOutBtn').title = t.zoomOut;
   $('#zFitBtn').textContent = t.fit;   $('#zFitBtn').title = t.fitTitle;
@@ -1651,6 +1666,7 @@ function applyStrings(){
     '<span id="restartFoot" style="cursor:pointer;text-decoration:underline">' + t.restart + '</span>' +
     (t.credit ? '<span class="credit">' + t.credit + '</span>' : '');
   $('#restartFoot').onclick = () => startRound();
+  chipEdges();
 }
 
 function setPack(pack){
@@ -1843,6 +1859,15 @@ function snapHeight(name, h, kb){
   return Math.round(Math.min(Math.max(want, 240), h - 150));
 }
 
+// which way the chip row can still be swiped, so the fades only show over hidden chips
+function chipEdges(){
+  const slot = $('#chipslot'), grip = $('#sheetgrip');
+  const over = slot.scrollWidth - slot.clientWidth;
+  grip.classList.toggle('more-l', slot.scrollLeft > 4);
+  grip.classList.toggle('more-r', over > 4 && slot.scrollLeft < over - 4);
+}
+$('#chipslot').addEventListener('scroll', chipEdges, {passive:true});
+
 function syncLayout(){
   const phone = isPhone();
   // the chips sit over the map on a desktop and in the sheet's grip on a phone,
@@ -1862,6 +1887,7 @@ function syncLayout(){
   app.style.setProperty('--sheet', sheet + 'px');
   app.style.setProperty('--band', (h - sheet) + 'px');
   panel.classList.toggle('peek', snap === 'peek');
+  chipEdges();
   relayout();
   autoFrame();
 }
@@ -1912,7 +1938,7 @@ input.addEventListener('focus', () => { if (isPhone()) autoFrame(); });
 // bare ground beside it, used to scroll the whole page out from under the keyboard.
 // Only the answer card, which can outgrow its sheet, still scrolls.
 document.addEventListener('touchmove', e => {
-  if (!e.cancelable || (e.target.closest && e.target.closest('.body'))) return;
+  if (!e.cancelable || (e.target.closest && e.target.closest('.body, .chipslot'))) return;
   e.preventDefault();      // the map's own pan/pinch runs on pointer events, untouched
 }, {passive: false});
 
