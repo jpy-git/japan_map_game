@@ -13,6 +13,7 @@
     --sea:#6fb0e0; --sea-deep:#5b97c8;
     --land:#f8f3e9; --land-edge:#c3b096;
     --oos:#a9c4da; --oos-edge:#8fadc8;
+    --back:#b6c3ca; --back-edge:#9aa9b1; --back-ink:#5f6e79;
     --m-target:#ee6a2b; --m-ok:#2da76f; --m-bad:#d83f52;
     --outline:#1e3d58;
   }
@@ -28,6 +29,12 @@
   .mapwrap{position:relative; background:linear-gradient(170deg,var(--sea) 0%,var(--sea-deep) 100%); overflow:hidden; display:flex; align-items:center; justify-content:center}
   #map{width:100%; height:100%; display:block; touch-action:none}
   .pref{fill:var(--land); stroke:var(--land-edge); stroke-width:1.1; stroke-linejoin:round; vector-effect:non-scaling-stroke}
+  /* land that is on the map but not in the game: desaturated, so it reads as
+     scenery rather than as an out-of-scope county waiting to be clicked */
+  #gBack path{fill:var(--back); stroke:var(--back-edge); stroke-width:1; stroke-linejoin:round;
+              vector-effect:non-scaling-stroke; pointer-events:none}
+  #backlabel{fill:var(--back-ink); text-anchor:middle; pointer-events:none; letter-spacing:.05em}
+  .locator #locback{fill:#aeb8c2}
   .pref.oos{fill:var(--oos); stroke:var(--oos-edge)}
   .pref.hovered{fill:#efe6d4}
   .pref.correct{fill:var(--m-ok)}
@@ -224,6 +231,8 @@
       <button class="chip" id="namesBtn">名前を表示</button>
     </div>
     <svg id="map" preserveAspectRatio="xMidYMid meet">
+      <g id="gBack"></g>
+      <text id="backlabel"></text>
       <g id="gOos"></g>
       <g id="gOutline"></g>
       <g id="gIn"></g>
@@ -240,6 +249,7 @@
     </div>
     <div class="locator" id="locator">
       <svg id="locmap" preserveAspectRatio="xMidYMid meet">
+        <path id="locback"></path>
         <g id="locpaths"></g>
         <rect id="locvp" rx="12"></rect>
       </svg>
@@ -1200,8 +1210,8 @@ const PACK_UK = {
     locator:'Back to the whole map',
     kb:['<kbd>Enter</kbd> answer / next', '<kbd>?</kbd> hint',
         '<kbd>+</kbd><kbd>−</kbd> zoom', '<kbd>0</kbd> whole map', '<kbd>f</kbd> frame question'],
-    credit:'Boundaries contain OS and National Statistics data © Crown copyright ' +
-           'and database right, and OSNI data © Crown copyright, under the Open Government Licence.',
+    credit:'Boundaries: OS, ONS and OSNI data © Crown copyright and database right, ' +
+           'under the Open Government Licence.',
   },
 };
 UK_REGIONS.forEach(r => r.ids.forEach(id => UK_REGION_OF[id] = r));
@@ -1220,6 +1230,7 @@ const svg = $('#map');
 const gOos = $('#gOos'), gOutline = $('#gOutline'), gIn = $('#gIn');
 const labels = $('#labels'), ring = $('#ring'), locpaths = $('#locpaths');
 const insetbox = $('#insetbox'), insetlabel = $('#insetlabel');
+const gBack = $('#gBack'), backlabel = $('#backlabel'), locback = $('#locback');
 const mapwrap = document.querySelector('.mapwrap');
 const locator = $('#locator'), locvp = $('#locvp'), maptip = $('#maptip');
 const input = $('#answer'), fb = $('#fb');
@@ -1262,6 +1273,20 @@ function buildMap(){
   const box = '0 0 ' + MAP.w + ' ' + MAP.h;
   svg.setAttribute('viewBox', box);
   $('#locmap').setAttribute('viewBox', box);
+
+  // Land the map has to show but the game never asks about — for the UK, the
+  // Republic of Ireland, without which the six counties float in open sea.
+  gBack.textContent = '';
+  backlabel.textContent = '';
+  locback.removeAttribute('d');
+  if (MAP.backdrop){
+    const b = document.createElementNS(SVGNS,'path');
+    b.setAttribute('d', MAP.backdrop.d);
+    gBack.appendChild(b);
+    locback.setAttribute('d', MAP.backdrop.d);
+    backlabel.setAttribute('x', MAP.backdrop.c[0]);
+    backlabel.textContent = MAP.backdrop.label;
+  }
 
   const ins = MAP.inset;
   for (const [k, v] of [['x',ins.x],['y',ins.y],['width',ins.w],['height',ins.h]])
@@ -1326,6 +1351,12 @@ function applyView(){
   const insF = Math.min(15 / ppu, (MAP.inset.w - 16) / (MAP.insetLabel.length * 0.62));
   insetlabel.style.fontSize = insF + 'px';
   insetlabel.setAttribute('y', MAP.inset.y + MAP.inset.h - insF * 0.45);
+  if (MAP.backdrop){
+    const bd = MAP.backdrop;
+    const bF = Math.min(12 / ppu, bd.w * 0.8 / (bd.label.length * 0.62));
+    backlabel.style.fontSize = bF + 'px';
+    backlabel.setAttribute('y', bd.c[1] + bF * 0.35);
+  }
   // a name only earns its place once its county is big enough to hold it
   for (let i = 0; i < IDS.length; i++)
     labels.children[i].style.display = ppu >= MINPPU[IDS[i]] ? '' : 'none';

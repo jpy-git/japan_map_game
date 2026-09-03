@@ -46,7 +46,10 @@ in most naturally, and the whole county goes with it.
 - `build/paths.json`, `build/build_paths.py` — the Japan map: prefecture SVG paths,
   canvas dimensions, and the Okinawa inset box.
 - `build/paths_uk.json`, `build/build_uk_paths.py` — the UK map, generated from the
-  sources below. Shetland goes in an inset box, as it does on every printed UK map.
+  sources below. Shetland goes in an inset box, as it does on every printed UK map,
+  and the Republic of Ireland is drawn greyed out behind the six counties so that
+  Northern Ireland is not left floating in open sea. It is scenery: it takes no
+  clicks, is never a question, and is not counted among the 107.
 
 ## Rebuilding
 
@@ -75,7 +78,8 @@ so its counties can safely come from a different source.
   authority districts for England, Scotland and Wales.
 - [evansd/uk-ceremonial-counties](https://github.com/evansd/uk-ceremonial-counties) —
   ceremonial county outlines, used to decide which district belongs to which county,
-  and directly for the six counties of Northern Ireland.
+  and directly for the six counties of Northern Ireland and the greyed-out Republic
+  of Ireland behind them (its one unnamed feature).
 
 Both are derived from official boundary data published under the
 [Open Government Licence](http://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).

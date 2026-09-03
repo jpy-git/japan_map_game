@@ -139,6 +139,22 @@ def contains(ring, pt):
     return inside
 
 
+def label_point(ring):
+    """Where a name should sit: the area-weighted centroid, pulled onto the shape
+    if that lands outside it. The plain mean of the vertices is no good — a coast
+    as indented as Ireland's or Scotland's carries most of the points."""
+    A = cx = cy = 0.0
+    for i in range(len(ring) - 1):
+        xa, ya = ring[i]; xb, yb = ring[i + 1]
+        cr = xa * yb - xb * ya
+        A += cr; cx += (xa + xb) * cr; cy += (ya + yb) * cr
+    if abs(A) < 1e-9:
+        return rep_point(ring)
+    A *= 0.5
+    cx /= (6 * A); cy /= (6 * A)
+    return (cx, cy) if contains(ring, (cx, cy)) else rep_point(ring)
+
+
 def rep_point(ring):
     """A point that is actually inside the ring, not just its centroid."""
     cx = sum(p[0] for p in ring[:-1]) / (len(ring) - 1)
@@ -287,6 +303,17 @@ def main():
             'name': name, 'nation': 'ni',
             'rings': [[(float(x), float(y)) for x, y in poly[0]] for poly in polys]}
 
+    # --- the Republic of Ireland, as scenery -----------------------------------
+    # Northern Ireland is an island fragment: without the rest of Ireland behind
+    # it, it floats in open sea. The source carries the Republic as its one
+    # unnamed feature, and shares the border with the six counties exactly.
+    roi = next(f for f in cer['features'] if f['properties'].get('county') is None)
+    g = roi['geometry']
+    polys = g['coordinates'] if g['type'] == 'MultiPolygon' else [g['coordinates']]
+    backdrop = [[(float(x), float(y)) for x, y in poly[0]] for poly in polys]
+    backdrop.sort(key=ring_area, reverse=True)
+    backdrop = [backdrop[0]] + [r for r in backdrop[1:] if ring_area(r) > 0.006]
+
     # --- trim to landmasses worth drawing -------------------------------------
     # Rockall, St Kilda and the Scillies are real but would only add specks.
     FLOOR = 0.0022          # sq degrees, about 15 km2 at this latitude
@@ -310,6 +337,7 @@ def main():
         u['rings'] = keep
 
     # --- simplify --------------------------------------------------------------
+    backdrop = [r for r in (rdp(r, 0.008) for r in backdrop) if len(r) >= 4]
     EPS = 0.0032
     for u in units.values():
         out = []
@@ -358,9 +386,13 @@ def main():
                 pts = [shmap(x, y) for x, y in pts]
             segs.append(pts)
         paths[i] = segs
+    back = [[proj(lon, lat) for lon, lat in r] for r in backdrop]
 
     # --- fit into a viewBox ----------------------------------------------------
-    allp = [p for segs in paths.values() for s in segs for p in s]
+    # the backdrop counts: it reaches further west than anything else, and the
+    # frame has to hold it. It also pulls the map towards Japan's proportions.
+    allp = ([p for segs in paths.values() for s in segs for p in s] +
+            [p for s in back for p in s])
     x0 = min(p[0] for p in allp); x1 = max(p[0] for p in allp)
     y0 = min(p[1] for p in allp); y1 = max(p[1] for p in allp)
     W = 1000.0
@@ -382,27 +414,29 @@ def main():
             screen.append(c)
             ds.append('M' + ' '.join(f'{fmt(a)},{fmt(b)}' for a, b in c) + 'Z')
         big = max(screen, key=ring_area)
-        A = cx = cy = 0.0
-        for j in range(len(big) - 1):
-            xa, ya = big[j]; xb, yb = big[j + 1]
-            cr = xa * yb - xb * ya
-            A += cr; cx += (xa + xb) * cr; cy += (ya + yb) * cr
-        if abs(A) < 1e-9:
-            cx = sum(q[0] for q in big) / len(big); cy = sum(q[1] for q in big) / len(big)
-        else:
-            A *= 0.5; cx /= (6 * A); cy /= (6 * A)
-        if not contains(big, (cx, cy)):
-            cx, cy = rep_point(big)
+        cx, cy = label_point(big)
         bx0 = min(q[0] for q in big); bx1 = max(q[0] for q in big)
         by0 = min(q[1] for q in big); by1 = max(q[1] for q in big)
         out[i] = {'name': units[i]['name'], 'nation': units[i]['nation'],
                   'd': ''.join(ds), 'c': [round(cx, 1), round(cy, 1)],
                   'b': [round(bx0, 1), round(by0, 1), round(bx1, 1), round(by1, 1)]}
 
+    def screen(s):
+        return [((p[0] - x0) * S, (p[1] - y0) * S) for p in s]
+    back_screen = [screen(s) for s in back]
+    big = max(back_screen, key=ring_area)
+    blx, bly = label_point(big)
+
     inset = {'x': (bx - x0) * S, 'y': (by - y0) * S, 'w': box_w * S, 'h': box_h * S}
     res = {'w': round(W, 1), 'h': round(H, 1),
            'inset': {k: round(v, 1) for k, v in inset.items()},
            'insetId': SHETLAND, 'insetLabel': 'Shetland',
+           'backdrop': {
+               'd': ''.join('M' + ' '.join(f'{fmt(a)},{fmt(b)}' for a, b in c) + 'Z'
+                            for c in back_screen),
+               'label': 'Republic of Ireland',
+               'c': [round(blx, 1), round(bly, 1)],
+               'w': round(max(q[0] for q in big) - min(q[0] for q in big), 1)},
            'units': {str(k): v for k, v in sorted(out.items())}}
     dest = os.path.join(HERE, 'paths_uk.json')
     open(dest, 'w').write(json.dumps(res, ensure_ascii=False, separators=(',', ':')))
@@ -410,6 +444,7 @@ def main():
     # --- report ----------------------------------------------------------------
     print('viewBox %s x %s   inset %s' % (res['w'], res['h'], res['inset']))
     print('units %d   path bytes %d' % (len(out), sum(len(v['d']) for v in out.values())))
+    print('backdrop %d rings, %d bytes' % (len(back_screen), len(res['backdrop']['d'])))
     for n, label in (('eng', 'England'), ('sco', 'Scotland'),
                      ('wal', 'Wales'), ('ni', 'Northern Ireland')):
         print('  %-17s %d' % (label, sum(1 for v in out.values() if v['nation'] == n)))
