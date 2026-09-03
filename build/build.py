@@ -1,19 +1,34 @@
 #!/usr/bin/env python3
-"""Inject the map data from paths.json into game.template.html -> ../index.html"""
+"""Inject both maps into game.template.html -> ../index.html
+
+paths.json (Japan) predates the two-country layout, so it is reshaped here into
+the record the game reads: units keyed by id, plus which unit lives in the inset
+box and what to call it. paths_uk.json is already written in that shape.
+"""
 import json, os, re
+
 here = os.path.dirname(os.path.abspath(__file__))
+
+
+def load(name):
+    return json.load(open(os.path.join(here, name)))
+
+
+jp = load('paths.json')
+jp['units'] = jp.pop('prefs')
+jp['insetId'] = 47            # Okinawa
+jp['insetLabel'] = '沖縄'
+
+uk = load('paths_uk.json')
+
 t = open(os.path.join(here, 'game.template.html')).read()
-d = json.load(open(os.path.join(here, 'paths.json')))
-ins = d['inset']
-for k, v in [('__W__', d['w']), ('__H__', d['h']),
-             ('__IX__', ins['x']), ('__IY__', ins['y']),
-             ('__IW__', ins['w']), ('__IH__', ins['h']),
-             ('__ILX__', round(ins['x'] + 9, 1)), ('__ILY__', round(ins['y'] + ins['h'] - 10, 1))]:
-    t = t.replace(k, str(v))
-# the view controller reads MAP.w / MAP.h / MAP.inset, so ship the whole record
-t = t.replace('__DATA__', json.dumps(d, ensure_ascii=False, separators=(',', ':')))
-left = re.findall(r'__[A-Z]+__', t)
+for k, d in (('__JP_DATA__', jp), ('__UK_DATA__', uk)):
+    t = t.replace(k, json.dumps(d, ensure_ascii=False, separators=(',', ':')))
+
+left = re.findall(r'__[A-Z_]+__', t)
 assert not left, 'unfilled placeholders: %s' % left
+
 out = os.path.join(here, '..', 'index.html')
 open(out, 'w').write(t)
-print('wrote index.html (%d bytes)' % len(t))
+print('wrote index.html (%d bytes: %d units in Japan, %d in the UK)'
+      % (len(t), len(jp['units']), len(uk['units'])))
