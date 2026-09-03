@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>都道府県クイズ — Japan Prefecture Quiz</title>
+<style>
+  :root{
+    --bg:#0e1014; --panel:#161a22; --panel2:#1d2230; --line:#2a3140;
+    --ink:#e8ecf3; --dim:#8b95a7;
+    --accent:#ff7a45; --ok:#3ddc97; --bad:#ff5d6c; --hint:#5aa9ff;
+    /* the map has its own light palette, deeper-toned so it reads on a pale ground */
+    --sea:#6fb0e0; --sea-deep:#5b97c8;
+    --land:#f8f3e9; --land-edge:#c3b096;
+    --oos:#a9c4da; --oos-edge:#8fadc8;
+    --m-target:#ee6a2b; --m-ok:#2da76f; --m-bad:#d83f52;
+    --outline:#1e3d58;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{display:grid; grid-template-columns:minmax(0,1fr) 380px; height:100vh; height:100dvh}
+  /* ---------- map ---------- */
+  .mapwrap{position:relative; background:linear-gradient(170deg,var(--sea) 0%,var(--sea-deep) 100%); overflow:hidden; display:flex; align-items:center; justify-content:center}
+  svg{width:100%; height:100%; display:block; touch-action:none}
+  .pref{fill:var(--land); stroke:var(--land-edge); stroke-width:1.1; stroke-linejoin:round; vector-effect:non-scaling-stroke}
+  .pref.oos{fill:var(--oos); stroke:var(--oos-edge)}
+  .pref.hovered{fill:#efe6d4}
+  .pref.correct{fill:var(--m-ok)}
+  .pref.wrong{fill:var(--m-bad)}
+  .pref.target{fill:var(--m-target)}
+  #gOutline path{fill:none; stroke:var(--outline); stroke-width:6; stroke-linejoin:round; opacity:.9}
+  #ring{fill:none; stroke:var(--m-target); stroke-width:3.2; stroke-dasharray:8 6; opacity:.95;
+        vector-effect:non-scaling-stroke; transform-box:fill-box; transform-origin:center}
+  #ring.ok{stroke:var(--m-ok)} #ring.bad{stroke:var(--m-bad)}
+  #insetbox{fill:none; stroke:#cfe3f3; stroke-width:1.2; stroke-dasharray:5 5; vector-effect:non-scaling-stroke}
+  #insetlabel{fill:#e2eff9; font-size:15px}
+  .lbl{fill:#4b4133; font-size:14px; text-anchor:middle; pointer-events:none; paint-order:stroke;
+       stroke:rgba(255,255,255,.92); stroke-width:3px; stroke-linejoin:round}
+  @keyframes pulse{0%,100%{opacity:.9;transform:scale(1)}50%{opacity:.35;transform:scale(1.06)}}
+  #ring.pulse{animation:pulse 1.9s ease-in-out infinite}
+  .maptop{position:absolute; top:14px; left:14px; right:14px; display:flex; gap:8px; align-items:center; pointer-events:none}
+  .chip{pointer-events:auto; background:rgba(255,255,255,.86); border:1px solid #a7c3d5; color:#3a5a72;
+        border-radius:999px; padding:6px 13px; font-size:12px; cursor:pointer; backdrop-filter:blur(8px);
+        box-shadow:0 1px 3px rgba(20,50,70,.12)}
+  .chip:hover{color:#12293c; border-color:#7aa5c0; background:#fff}
+  .chip.on{color:#fff; background:#3d6280; border-color:#3d6280}
+  .chip.mode{border-color:#7aa5c0; color:#12293c; font-weight:600}
+  .chip.hidden{display:none}
+  .spacer{flex:1}
+  /* ---------- panel ---------- */
+  .panel{background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-width:0}
+  .phead{padding:20px 22px 16px; border-bottom:1px solid var(--line)}
+  .title{font-size:19px; font-weight:650; letter-spacing:.02em}
+  .sub{font-size:12px; color:var(--dim); margin-top:3px}
+  .stats{display:flex; gap:0; border-bottom:1px solid var(--line)}
+  .stat{flex:1; padding:13px 10px; text-align:center; border-right:1px solid var(--line)}
+  .stat:last-child{border-right:0}
+  .snum{font-size:21px; font-weight:650; font-variant-numeric:tabular-nums}
+  .slab{font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.09em; margin-top:2px}
+  .bar{height:3px; background:var(--panel2)}
+  .bar>i{display:block; height:100%; background:var(--accent); transition:width .35s ease}
+  .body{flex:1; padding:22px; overflow-y:auto; display:flex; flex-direction:column}
+  .prompt{font-size:13px; color:var(--dim); margin-bottom:10px}
+  input[type=text]{
+    width:100%; background:var(--panel2); border:1.5px solid var(--line); color:var(--ink);
+    font-size:23px; padding:13px 15px; border-radius:11px; outline:none; font-family:inherit;
+  }
+  input[type=text]:focus{border-color:#4a566d}
+  input.ok{border-color:var(--ok)} input.bad{border-color:var(--bad)}
+  @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
+  input.shake{animation:shake .45s}
+  .row{display:flex; gap:9px; margin-top:11px}
+  button{
+    font-family:inherit; font-size:13px; padding:10px 15px; border-radius:9px; cursor:pointer;
+    background:var(--panel2); color:var(--dim); border:1px solid var(--line);
+  }
+  button:hover{color:var(--ink); border-color:#3d4759}
+  button:disabled{opacity:.4; cursor:default}
+  button:disabled:hover{color:var(--dim); border-color:var(--line)}
+  button.primary{background:var(--accent); color:#1a0d06; border-color:var(--accent); font-weight:600}
+  button.primary:hover{filter:brightness(1.1); color:#1a0d06}
+  .fb{margin-top:16px; min-height:120px}
+  .verdict{font-size:14px; font-weight:600; margin-bottom:11px; display:flex; align-items:center; gap:8px}
+  .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.hint{color:var(--hint)}
+  .card{background:var(--panel2); border:1px solid var(--line); border-radius:11px; padding:15px 17px}
+  .kanji{font-size:31px; font-weight:600; letter-spacing:.04em}
+  .kana{font-size:14px; color:var(--dim); margin-top:5px}
+  .meta{font-size:12px; color:var(--dim); margin-top:9px; padding-top:9px; border-top:1px solid var(--line); line-height:1.6}
+  .yours{font-size:12px; color:var(--dim); margin-top:10px}
+  .yours b{color:var(--bad); font-weight:600}
+  .hrow{display:flex; gap:11px; align-items:flex-start}
+  .hrow.more{margin-top:13px; padding-top:13px; border-top:1px solid var(--line)}
+  .hnum{flex:none; width:19px; height:19px; border-radius:50%; background:var(--line); color:var(--dim);
+        font-size:11px; display:flex; align-items:center; justify-content:center; margin-top:2px}
+  .fam{font-size:15.5px; line-height:2.05}
+  .fam ruby{ruby-position:over; -webkit-ruby-position:before}
+  .fam rt{color:#79c2ff; font-size:.52em; font-weight:400; letter-spacing:.02em;
+          transform:translateY(2px); user-select:none}
+  .famen{font-size:12.5px; color:var(--dim); line-height:1.55; margin-top:6px}
+  .foot{padding:13px 22px; border-top:1px solid var(--line); font-size:11px; color:#606a7c; display:flex; gap:14px; flex-wrap:wrap}
+  kbd{background:var(--panel2); border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:1px 5px; font-size:10px; font-family:inherit}
+  /* ---------- results ---------- */
+  .results{display:flex; flex-direction:column; gap:14px}
+  .big{font-size:44px; font-weight:700; line-height:1}
+  .misslist{display:flex; flex-direction:column; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden}
+  .missrow{background:var(--panel2); padding:9px 13px; display:flex; justify-content:space-between; align-items:baseline; gap:10px}
+  .missrow span:last-child{font-size:11px; color:var(--dim)}
+  .hidden{display:none}
+  @media (max-width:900px){
+    .app{grid-template-columns:1fr; grid-template-rows:minmax(240px,44vh) 1fr; height:auto; min-height:100dvh}
+    .panel{border-left:0; border-top:1px solid var(--line)}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="mapwrap">
+    <div class="maptop">
+      <button class="chip mode" id="modeBtn">都道府県を当てる</button>
+      <button class="chip" id="regionBtn">全国 · all Japan</button>
+      <div class="spacer"></div>
+      <button class="chip" id="namesBtn">名前を表示</button>
+    </div>
+    <svg id="map" viewBox="0 0 __W__ __H__" preserveAspectRatio="xMidYMid meet">
+      <g id="gOos"></g>
+      <g id="gOutline"></g>
+      <g id="gIn"></g>
+      <rect id="insetbox" x="__IX__" y="__IY__" width="__IW__" height="__IH__" rx="6"></rect>
+      <text id="insetlabel" x="__ILX__" y="__ILY__">沖縄</text>
+      <g id="labels"></g>
+      <circle id="ring" class="pulse" cx="0" cy="0" r="0"></circle>
+    </svg>
+  </div>
+
+  <div class="panel">
+    <div class="phead">
+      <div class="title" id="hTitle">都道府県クイズ</div>
+      <div class="sub" id="hSub">Name the highlighted prefecture</div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="snum" id="sScore">0</div><div class="slab">correct</div></div>
+      <div class="stat"><div class="snum" id="sSeen">0/47</div><div class="slab">progress</div></div>
+      <div class="stat"><div class="snum" id="sStreak">0</div><div class="slab">streak</div></div>
+    </div>
+    <div class="bar"><i id="bar" style="width:0%"></i></div>
+
+    <div class="body">
+      <div id="playView">
+        <div class="prompt" id="prompt">オレンジ色の都道府県は？ &nbsp;·&nbsp; kanji, kana or romaji</div>
+        <input type="text" id="answer" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="例: 三重県 / みえ / mie">
+        <div class="row">
+          <button class="primary" id="submitBtn">答える</button>
+          <button id="hintBtn">ヒント</button>
+          <button id="revealBtn">答えを見る</button>
+        </div>
+        <div class="fb" id="fb"></div>
+      </div>
+      <div id="resultView" class="hidden"></div>
+    </div>
+
+    <div class="foot">
+      <span><kbd>Enter</kbd> 答える / 次へ</span>
+      <span><kbd>?</kbd> ヒント</span>
+      <span id="restartFoot" style="cursor:pointer;text-decoration:underline">最初から</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const MAP = __DATA__;
+
+// id: [kana, romaji]
+const READ = {
+  1:['ほっかいどう','hokkaido'],   2:['あおもり','aomori'],     3:['いわて','iwate'],
+  4:['みやぎ','miyagi'],           5:['あきた','akita'],        6:['やまがた','yamagata'],
+  7:['ふくしま','fukushima'],      8:['いばらき','ibaraki'],    9:['とちぎ','tochigi'],
+ 10:['ぐんま','gunma'],           11:['さいたま','saitama'],   12:['ちば','chiba'],
+ 13:['とうきょう','tokyo'],       14:['かながわ','kanagawa'],  15:['にいがた','niigata'],
+ 16:['とやま','toyama'],          17:['いしかわ','ishikawa'],  18:['ふくい','fukui'],
+ 19:['やまなし','yamanashi'],     20:['ながの','nagano'],      21:['ぎふ','gifu'],
+ 22:['しずおか','shizuoka'],      23:['あいち','aichi'],       24:['みえ','mie'],
+ 25:['しが','shiga'],             26:['きょうと','kyoto'],     27:['おおさか','osaka'],
+ 28:['ひょうご','hyogo'],         29:['なら','nara'],          30:['わかやま','wakayama'],
+ 31:['とっとり','tottori'],       32:['しまね','shimane'],     33:['おかやま','okayama'],
+ 34:['ひろしま','hiroshima'],     35:['やまぐち','yamaguchi'], 36:['とくしま','tokushima'],
+ 37:['かがわ','kagawa'],          38:['えひめ','ehime'],       39:['こうち','kochi'],
+ 40:['ふくおか','fukuoka'],       41:['さが','saga'],          42:['ながさき','nagasaki'],
+ 43:['くまもと','kumamoto'],      44:['おおいた','oita'],      45:['みやざき','miyazaki'],
+ 46:['かごしま','kagoshima'],     47:['おきなわ','okinawa'],
+};
+
+// Three things each prefecture is known for. Revealed one at a time.
+// None of these may contain the prefecture's own name, or another prefecture's name.
+const HINTS = {
+ 1:[['<ruby>日本最北<rt>にほんさいほく</rt></ruby>の<ruby>地<rt>ち</rt></ruby>。<ruby>面積<rt>めんせき</rt></ruby>は<ruby>日本一<rt>にほんいち</rt></ruby>で、<ruby>全国<rt>ぜんこく</rt></ruby>の<ruby>約<rt>やく</rt></ruby>2<ruby>割<rt>わり</rt></ruby>を<ruby>占<rt>し</rt></ruby>める','The northernmost region, and by far the largest — about a fifth of the whole country'],
+    ['<ruby>味噌<rt>みそ</rt></ruby>ラーメン、ジンギスカン、<ruby>豊<rt>ゆた</rt></ruby>かな<ruby>海<rt>うみ</rt></ruby>の<ruby>幸<rt>さち</rt></ruby>','Miso ramen, grilled mutton "jingisukan", and superb seafood'],
+    ['2<ruby>月<rt>がつ</rt></ruby>の<ruby>雪<rt>ゆき</rt></ruby>まつりと、<ruby>夏<rt>なつ</rt></ruby>のラベンダー<ruby>畑<rt>ばたけ</rt></ruby>','The February snow festival and summer lavender fields']],
+ 2:[['りんごの<ruby>生産量<rt>せいさんりょう</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>','Japan’s top apple grower, by a wide margin'],
+    ['<ruby>巨大<rt>きょだい</rt></ruby>な<ruby>灯籠<rt>とうろう</rt></ruby>が<ruby>練<rt>ね</rt></ruby>り<ruby>歩<rt>ある</rt></ruby>くねぶた<ruby>祭<rt>まつり</rt></ruby>','The Nebuta festival, with its giant illuminated floats'],
+    ['<ruby>津軽三味線<rt>つがるじゃみせん</rt></ruby>と、<ruby>縄文<rt>じょうもん</rt></ruby>の<ruby>三内丸山遺跡<rt>さんないまるやまいせき</rt></ruby>','Tsugaru shamisen music, and the Jomon-era Sannai-Maruyama ruins']],
+ 3:[['<ruby>本州<rt>ほんしゅう</rt></ruby>で<ruby>最<rt>もっと</rt></ruby>も<ruby>面積<rt>めんせき</rt></ruby>の<ruby>広<rt>ひろ</rt></ruby>い<ruby>県<rt>けん</rt></ruby>','The largest prefecture on Honshu'],
+    ['わんこそば ── お<ruby>椀<rt>わん</rt></ruby>のそばを<ruby>次々<rt>つぎつぎ</rt></ruby>におかわりする','Wanko soba, where bowl after bowl is refilled until you give up'],
+    ['<ruby>中尊寺金色堂<rt>ちゅうそんじこんじきどう</rt></ruby>と、<ruby>宮沢賢治<rt>みやざわけんじ</rt></ruby>の<ruby>故郷<rt>こきょう</rt></ruby>','The golden hall of Chuson-ji, and the home of the poet Miyazawa Kenji']],
+ 4:[['<ruby>牛<rt>ぎゅう</rt></ruby>タン<ruby>焼<rt>や</rt></ruby>きと<ruby>笹<rt>ささ</rt></ruby>かまぼこ','Grilled beef tongue and sasa-kamaboko fish cake'],
+    ['<ruby>日本三景<rt>にほんさんけい</rt></ruby>のひとつ、<ruby>松島<rt>まつしま</rt></ruby>の<ruby>島々<rt>しまじま</rt></ruby>','Matsushima bay, one of the three great views of Japan'],
+    ['<ruby>伊達政宗<rt>だてまさむね</rt></ruby>が<ruby>築<rt>きず</rt></ruby>いた<ruby>城下町<rt>じょうかまち</rt></ruby>で<ruby>開<rt>ひら</rt></ruby>かれる<ruby>七夕<rt>たなばた</rt></ruby>まつり','The Tanabata festival, in the castle town founded by Date Masamune']],
+ 5:[['<ruby>大晦日<rt>おおみそか</rt></ruby>に<ruby>鬼<rt>おに</rt></ruby>が<ruby>家々<rt>いえいえ</rt></ruby>を<ruby>回<rt>まわ</rt></ruby>るなまはげ','Namahage — demons that visit homes on New Year’s Eve'],
+    ['きりたんぽ<ruby>鍋<rt>なべ</rt></ruby>と、<ruby>日本有数<rt>にほんゆうすう</rt></ruby>の<ruby>米<rt>こめ</rt></ruby>どころ','Kiritanpo hot pot, and some of the best rice in Japan'],
+    ['<ruby>長<rt>なが</rt></ruby>い<ruby>竿<rt>さお</rt></ruby>に<ruby>提灯<rt>ちょうちん</rt></ruby>を<ruby>掲<rt>かか</rt></ruby>げて<ruby>練<rt>ね</rt></ruby>り<ruby>歩<rt>ある</rt></ruby>く<ruby>夏<rt>なつ</rt></ruby>の<ruby>竿燈<rt>かんとう</rt></ruby>まつり','The Kanto festival, where bearers balance tall poles hung with lanterns']],
+ 6:[['さくらんぼの<ruby>生産量<rt>せいさんりょう</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>','Japan’s top cherry grower'],
+    ['<ruby>秋<rt>あき</rt></ruby>に<ruby>河原<rt>かわら</rt></ruby>で<ruby>大鍋<rt>おおなべ</rt></ruby>を<ruby>囲<rt>かこ</rt></ruby>む<ruby>芋煮会<rt>いもにかい</rt></ruby>','Imoni — riverside stew parties held every autumn'],
+    ['<ruby>蔵王<rt>ざおう</rt></ruby>の<ruby>樹氷<rt>じゅひょう</rt></ruby>と、<ruby>断崖<rt>だんがい</rt></ruby>に<ruby>建<rt>た</rt></ruby>つ<ruby>山寺<rt>やまでら</rt></ruby>の<ruby>立石寺<rt>りっしゃくじ</rt></ruby>','The snow monsters of Zao, and the cliffside temple of Risshaku-ji']],
+ 7:[['<ruby>桃<rt>もも</rt></ruby>の<ruby>産地<rt>さんち</rt></ruby>として<ruby>全国有数<rt>ぜんこくゆうすう</rt></ruby>','One of Japan’s leading peach growers'],
+    ['<ruby>会津若松<rt>あいづわかまつ</rt></ruby>の<ruby>鶴<rt>つる</rt></ruby>ヶ<ruby>城<rt>じょう</rt></ruby>と、<ruby>白虎隊<rt>びゃっこたい</rt></ruby>の<ruby>悲話<rt>ひわ</rt></ruby>','Tsuruga castle in Aizu-Wakamatsu, and the tragedy of the Byakkotai'],
+    ['<ruby>喜多方<rt>きたかた</rt></ruby>ラーメンと、<ruby>大内宿<rt>おおうちじゅく</rt></ruby>の<ruby>茅葺<rt>かやぶ</rt></ruby>き<ruby>集落<rt>しゅうらく</rt></ruby>','Kitakata ramen, and the thatched post town of Ouchi-juku']],
+ 8:[['<ruby>納豆<rt>なっとう</rt></ruby>の<ruby>代名詞<rt>だいめいし</rt></ruby>。<ruby>水戸納豆<rt>みとなっとう</rt></ruby>で<ruby>全国<rt>ぜんこく</rt></ruby>に<ruby>知<rt>し</rt></ruby>られる','Synonymous with natto — Mito natto is known across the country'],
+    ['<ruby>日本三名園<rt>にほんさんめいえん</rt></ruby>の<ruby>偕楽園<rt>かいらくえん</rt></ruby>。<ruby>梅<rt>うめ</rt></ruby>の<ruby>名所<rt>めいしょ</rt></ruby>として<ruby>知<rt>し</rt></ruby>られる','Kairakuen, one of the three great gardens, famed for its plum blossom'],
+    ['メロンの<ruby>生産量<rt>せいさんりょう</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>','Japan’s top melon grower']],
+ 9:[['いちご（とちおとめ）の<ruby>生産量<rt>せいさんりょう</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>','Japan’s top strawberry grower'],
+    ['<ruby>徳川家康<rt>とくがわいえやす</rt></ruby>を<ruby>祀<rt>まつ</rt></ruby>る<ruby>日光東照宮<rt>にっこうとうしょうぐう</rt></ruby>','The Nikko Toshogu shrine, where Tokugawa Ieyasu is enshrined'],
+    ['<ruby>餃子<rt>ぎょうざ</rt></ruby>の<ruby>消費<rt>しょうひ</rt></ruby>で<ruby>知<rt>し</rt></ruby>られる<ruby>街<rt>まち</rt></ruby>と、<ruby>鬼怒川温泉<rt>きぬがわおんせん</rt></ruby>','A city famous for gyoza, and the Kinugawa hot springs']],
+10:[['<ruby>草津<rt>くさつ</rt></ruby>・<ruby>伊香保<rt>いかほ</rt></ruby>など<ruby>名湯<rt>めいとう</rt></ruby>がそろう','A prefecture full of famous hot springs — Kusatsu, Ikaho and more'],
+    ['こんにゃくの<ruby>生産量<rt>せいさんりょう</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>','Japan’s top konnyaku producer'],
+    ['だるまの<ruby>産地<rt>さんち</rt></ruby>。<ruby>子<rt>こ</rt></ruby>どもは<ruby>郷土<rt>きょうど</rt></ruby>かるたで<ruby>地理<rt>ちり</rt></ruby>を<ruby>覚<rt>おぼ</rt></ruby>える','Home of daruma dolls; children here learn local geography from a karuta card game']],
+11:[['<ruby>海<rt>うみ</rt></ruby>に<ruby>面<rt>めん</rt></ruby>していない<ruby>内陸県<rt>ないりくけん</rt></ruby>','A landlocked prefecture with no coastline at all'],
+    ['<ruby>蔵造<rt>くらづく</rt></ruby>りの<ruby>町並<rt>まちなみ</rt></ruby>みが<ruby>残<rt>のこ</rt></ruby>る<ruby>川越<rt>かわごえ</rt></ruby>の「<ruby>小江戸<rt>こえど</rt></ruby>」','Kawagoe, the “little Edo” of storehouse-lined streets'],
+    ['<ruby>草加<rt>そうか</rt></ruby>せんべいと、<ruby>盆栽<rt>ぼんさい</rt></ruby>の<ruby>里<rt>さと</rt></ruby>','Soka rice crackers, and a celebrated bonsai village']],
+12:[['<ruby>成田空港<rt>なりたくうこう</rt></ruby>と、<ruby>湾岸<rt>わんがん</rt></ruby>のディズニーリゾート','Narita airport, and the Disney resort out on the bay'],
+    ['<ruby>落花生<rt>らっかせい</rt></ruby>の<ruby>生産量<rt>せいさんりょう</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>','Japan’s top peanut grower'],
+    ['<ruby>野田<rt>のだ</rt></ruby>・<ruby>銚子<rt>ちょうし</rt></ruby>で<ruby>続<rt>つづ</rt></ruby>く<ruby>醤油醸造<rt>しょうゆじょうぞう</rt></ruby>','Soy sauce brewing in Noda and Choshi']],
+13:[['<ruby>日本<rt>にほん</rt></ruby>の<ruby>首都<rt>しゅと</rt></ruby>。<ruby>人口<rt>じんこう</rt></ruby>は<ruby>約<rt>やく</rt></ruby>1400<ruby>万人<rt>まんにん</rt></ruby>','Japan’s capital, home to some 14 million people'],
+    ['<ruby>皇居<rt>こうきょ</rt></ruby>と、<ruby>高<rt>たか</rt></ruby>さ634mのスカイツリー','The Imperial Palace, and the 634-metre Skytree'],
+    ['<ruby>渋谷<rt>しぶや</rt></ruby>のスクランブル<ruby>交差点<rt>こうさてん</rt></ruby>、<ruby>築地<rt>つきじ</rt></ruby>と<ruby>豊洲<rt>とよす</rt></ruby>の<ruby>市場<rt>しじょう</rt></ruby>','The Shibuya scramble crossing, and the Tsukiji and Toyosu markets']],
+14:[['<ruby>日本最大<rt>にほんさいだい</rt></ruby>の<ruby>中華街<rt>ちゅうかがい</rt></ruby>がある<ruby>港町<rt>みなとまち</rt></ruby>','A port city with the largest Chinatown in Japan'],
+    ['<ruby>武家政権<rt>ぶけせいけん</rt></ruby>が<ruby>生<rt>う</rt></ruby>まれた<ruby>古都<rt>こと</rt></ruby>と、<ruby>鎌倉<rt>かまくら</rt></ruby>の<ruby>大仏<rt>だいぶつ</rt></ruby>','The old seat of samurai government, and the Great Buddha of Kamakura'],
+    ['<ruby>箱根<rt>はこね</rt></ruby>の<ruby>温泉<rt>おんせん</rt></ruby>と<ruby>芦<rt>あし</rt></ruby>ノ<ruby>湖<rt>こ</rt></ruby>','The hot springs of Hakone and Lake Ashi']],
+15:[['コシヒカリの<ruby>本場<rt>ほんば</rt></ruby>で、<ruby>米<rt>こめ</rt></ruby>の<ruby>産出額<rt>さんしゅつがく</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>','Home of Koshihikari — the top rice-producing prefecture in Japan'],
+    ['<ruby>日本酒<rt>にほんしゅ</rt></ruby>の<ruby>蔵元<rt>くらもと</rt></ruby>が<ruby>約<rt>やく</rt></ruby>90と<ruby>全国最多<rt>ぜんこくさいた</rt></ruby>','Around 90 sake breweries, more than anywhere else'],
+    ['<ruby>世界有数<rt>せかいゆうすう</rt></ruby>の<ruby>豪雪地帯<rt>ごうせつちたい</rt></ruby>。<ruby>沖<rt>おき</rt></ruby>には<ruby>佐渡島<rt>さどがしま</rt></ruby>が<ruby>浮<rt>う</rt></ruby>かぶ','One of the snowiest places on earth; Sado island lies offshore']],
+16:[['<ruby>立山黒部<rt>たてやまくろべ</rt></ruby>アルペンルートと、<ruby>雪<rt>ゆき</rt></ruby>の<ruby>大谷<rt>おおたに</rt></ruby>','The Tateyama-Kurobe alpine route and its towering snow corridor'],
+    ['<ruby>春<rt>はる</rt></ruby>に<ruby>青<rt>あお</rt></ruby>く<ruby>光<rt>ひか</rt></ruby>るホタルイカと、<ruby>冬<rt>ふゆ</rt></ruby>の<ruby>寒<rt>かん</rt></ruby>ブリ','Glowing firefly squid in spring, and prized winter yellowtail'],
+    ['<ruby>江戸期<rt>えどき</rt></ruby>から<ruby>続<rt>つづ</rt></ruby>く「<ruby>置<rt>お</rt></ruby>き<ruby>薬<rt>ぐすり</rt></ruby>」の<ruby>行商<rt>ぎょうしょう</rt></ruby>','The travelling medicine sellers who have worked here since the Edo period']],
+17:[['<ruby>日本三名園<rt>にほんさんめいえん</rt></ruby>の<ruby>兼六園<rt>けんろくえん</rt></ruby>','Kenrokuen, one of the three great gardens of Japan'],
+    ['<ruby>金箔<rt>きんぱく</rt></ruby>の<ruby>生産<rt>せいさん</rt></ruby>が<ruby>全国<rt>ぜんこく</rt></ruby>の99%<ruby>以上<rt>いじょう</rt></ruby>','Produces over 99% of all the gold leaf in Japan'],
+    ['<ruby>輪島塗<rt>わじまぬり</rt></ruby>と<ruby>九谷焼<rt>くたにやき</rt></ruby>。<ruby>加賀百万石<rt>かがひゃくまんごく</rt></ruby>の<ruby>城下町<rt>じょうかまち</rt></ruby>','Wajima lacquerware and Kutani porcelain, in the old Kaga castle town']],
+18:[['<ruby>恐竜化石<rt>きょうりゅうかせき</rt></ruby>の<ruby>産出量<rt>さんしゅつりょう</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>','Japan’s richest source of dinosaur fossils by far'],
+    ['<ruby>東尋坊<rt>とうじんぼう</rt></ruby>の<ruby>断崖<rt>だんがい</rt></ruby>と、<ruby>冬<rt>ふゆ</rt></ruby>の<ruby>越前<rt>えちぜん</rt></ruby>がに','The sheer cliffs of Tojinbo, and Echizen crab in winter'],
+    ['<ruby>鯖江<rt>さばえ</rt></ruby>のめがねフレームは<ruby>国内<rt>こくない</rt></ruby>シェア9<ruby>割超<rt>わりちょう</rt></ruby>','Sabae makes more than 90% of Japan’s eyeglass frames']],
+19:[['ぶどうとももの<ruby>生産量<rt>せいさんりょう</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>','Japan’s top grower of both grapes and peaches'],
+    ['<ruby>国産<rt>こくさん</rt></ruby>ワイン<ruby>発祥<rt>はっしょう</rt></ruby>の<ruby>地<rt>ち</rt></ruby>','The birthplace of Japanese wine'],
+    ['<ruby>富士山<rt>ふじさん</rt></ruby>の<ruby>北側<rt>きたがわ</rt></ruby>に<ruby>五<rt>いつ</rt></ruby>つの<ruby>湖<rt>みずうみ</rt></ruby>。<ruby>武田信玄<rt>たけだしんげん</rt></ruby>の<ruby>国<rt>くに</rt></ruby>','Five lakes on the north side of Mt. Fuji — and the domain of Takeda Shingen']],
+20:[['1998<ruby>年<rt>ねん</rt></ruby>の<ruby>冬季<rt>とうき</rt></ruby>オリンピックの<ruby>開催地<rt>かいさいち</rt></ruby>','Host of the 1998 Winter Olympics'],
+    ['<ruby>日本<rt>にほん</rt></ruby>アルプスに<ruby>囲<rt>かこ</rt></ruby>まれ、3000m<ruby>級<rt>きゅう</rt></ruby>の<ruby>山<rt>やま</rt></ruby>が<ruby>連<rt>つら</rt></ruby>なる','Ringed by the Japan Alps, with a wall of 3,000-metre peaks'],
+    ['<ruby>善光寺<rt>ぜんこうじ</rt></ruby>とそば、<ruby>温泉<rt>おんせん</rt></ruby>に<ruby>浸<rt>つ</rt></ruby>かる<ruby>猿<rt>さる</rt></ruby>','Zenko-ji temple, soba noodles, and monkeys that bathe in the hot springs']],
+21:[['<ruby>白川郷<rt>しらかわごう</rt></ruby>の<ruby>合掌造<rt>がっしょうづく</rt></ruby>り<ruby>集落<rt>しゅうらく</rt></ruby>','The steep thatched farmhouses of Shirakawa-go'],
+    ['<ruby>長良川<rt>ながらがわ</rt></ruby>の<ruby>鵜飼<rt>うかい</rt></ruby>と、<ruby>飛騨牛<rt>ひだぎゅう</rt></ruby>','Cormorant fishing on the Nagara river, and Hida beef'],
+    ['<ruby>関<rt>せき</rt></ruby>の<ruby>刃物<rt>はもの</rt></ruby>と、<ruby>高山<rt>たかやま</rt></ruby>に<ruby>残<rt>のこ</rt></ruby>る<ruby>古<rt>ふる</rt></ruby>い<ruby>町並<rt>まちなみ</rt></ruby>み','The blade smiths of Seki, and the old streets of Takayama']],
+22:[['お<ruby>茶<rt>ちゃ</rt></ruby>の<ruby>生産量<rt>せいさんりょう</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>','Japan’s top tea grower'],
+    ['<ruby>富士山<rt>ふじさん</rt></ruby>の<ruby>南側<rt>みなみがわ</rt></ruby>にあり、<ruby>駿河湾<rt>するがわん</rt></ruby>を<ruby>望<rt>のぞ</rt></ruby>む','The south side of Mt. Fuji, looking out over Suruga bay'],
+    ['うなぎと、<ruby>浜松<rt>はままつ</rt></ruby>の<ruby>楽器<rt>がっき</rt></ruby>・バイク<ruby>産業<rt>さんぎょう</rt></ruby>','Eel, and Hamamatsu’s musical instrument and motorcycle industries']],
+23:[['トヨタのお<ruby>膝元<rt>ひざもと</rt></ruby>。<ruby>製造品出荷額<rt>せいぞうひんしゅっかがく</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>','Toyota’s home ground, and Japan’s largest manufacturing output'],
+    ['<ruby>味噌<rt>みそ</rt></ruby>カツ、ひつまぶし、<ruby>喫茶店<rt>きっさてん</rt></ruby>のモーニング','Miso katsu, hitsumabushi, and the coffee-shop “morning” set'],
+    ['<ruby>金<rt>きん</rt></ruby>の<ruby>鯱<rt>しゃちほこ</rt></ruby>をいただく<ruby>名古屋城<rt>なごやじょう</rt></ruby>','Nagoya castle, crowned with golden shachihoko']],
+24:[['20<ruby>年<rt>ねん</rt></ruby>ごとに<ruby>社殿<rt>しゃでん</rt></ruby>を<ruby>建<rt>た</rt></ruby>て<ruby>替<rt>か</rt></ruby>える<ruby>伊勢神宮<rt>いせじんぐう</rt></ruby>','The Grand Shrine of Ise, rebuilt from scratch every twenty years'],
+    ['<ruby>真珠<rt>しんじゅ</rt></ruby>の<ruby>養殖<rt>ようしょく</rt></ruby>が<ruby>世界<rt>せかい</rt></ruby>で<ruby>初<rt>はじ</rt></ruby>めて<ruby>成功<rt>せいこう</rt></ruby>した<ruby>海<rt>うみ</rt></ruby>','The sea where cultured pearls were first created'],
+    ['<ruby>松阪牛<rt>まつさかうし</rt></ruby>と、<ruby>伊賀<rt>いが</rt></ruby>の<ruby>忍者<rt>にんじゃ</rt></ruby>','Matsusaka beef, and the ninja of Iga']],
+25:[['<ruby>県<rt>けん</rt></ruby>の6<ruby>分<rt>ぶん</rt></ruby>の1を<ruby>日本最大<rt>にほんさいだい</rt></ruby>の<ruby>湖<rt>みずうみ</rt></ruby>が<ruby>占<rt>し</rt></ruby>める','Japan’s largest lake covers a sixth of the prefecture'],
+    ['<ruby>国宝<rt>こくほう</rt></ruby>の<ruby>彦根城<rt>ひこねじょう</rt></ruby>と、<ruby>近江牛<rt>おうみぎゅう</rt></ruby>','Hikone castle, a national treasure, and Omi beef'],
+    ['<ruby>全国<rt>ぜんこく</rt></ruby>を<ruby>歩<rt>ある</rt></ruby>いた<ruby>近江商人<rt>おうみしょうにん</rt></ruby>と、その「<ruby>三方<rt>さんぽう</rt></ruby>よし」','The Omi merchants who traded across Japan, and their creed of “good for all three sides”']],
+26:[['<ruby>千年<rt>せんねん</rt></ruby>を<ruby>超<rt>こ</rt></ruby>えて<ruby>都<rt>みやこ</rt></ruby>が<ruby>置<rt>お</rt></ruby>かれた<ruby>街<rt>まち</rt></ruby>','The city that served as Japan’s capital for over a thousand years'],
+    ['<ruby>金閣寺<rt>きんかくじ</rt></ruby>、<ruby>清水寺<rt>きよみずでら</rt></ruby>、<ruby>伏見稲荷<rt>ふしみいなり</rt></ruby>の<ruby>千本鳥居<rt>せんぼんとりい</rt></ruby>','Kinkaku-ji, Kiyomizu-dera, and the thousand torii of Fushimi Inari'],
+    ['<ruby>舞妓<rt>まいこ</rt></ruby>と<ruby>花街<rt>はなまち</rt></ruby>、<ruby>宇治<rt>うじ</rt></ruby>の<ruby>抹茶<rt>まっちゃ</rt></ruby>','Maiko and the geisha quarters, and Uji matcha']],
+27:[['たこ<ruby>焼<rt>や</rt></ruby>きとお<ruby>好<rt>この</rt></ruby>み<ruby>焼<rt>や</rt></ruby>き。「<ruby>食<rt>く</rt></ruby>い<ruby>倒<rt>たお</rt></ruby>れ」の<ruby>街<rt>まち</rt></ruby>','Takoyaki and okonomiyaki — the city that eats itself broke'],
+    ['<ruby>道頓堀<rt>どうとんぼり</rt></ruby>のネオンと、<ruby>走<rt>はし</rt></ruby>るグリコの<ruby>看板<rt>かんばん</rt></ruby>','The neon of Dotonbori, and the running Glico man'],
+    ['<ruby>商人<rt>しょうにん</rt></ruby>の<ruby>街<rt>まち</rt></ruby>で、<ruby>漫才<rt>まんざい</rt></ruby>とお<ruby>笑<rt>わら</rt></ruby>いの<ruby>本場<rt>ほんば</rt></ruby>','A merchant city, and the home of manzai comedy']],
+28:[['<ruby>世界遺産<rt>せかいいさん</rt></ruby>の<ruby>白鷺城<rt>しらさぎじょう</rt></ruby> ── <ruby>姫路<rt>ひめじ</rt></ruby>の<ruby>白<rt>しろ</rt></ruby>い<ruby>天守<rt>てんしゅ</rt></ruby>','The white “heron castle” of Himeji, a World Heritage site'],
+    ['<ruby>神戸<rt>こうべ</rt></ruby>ビーフと、<ruby>灘<rt>なだ</rt></ruby>の<ruby>日本酒<rt>にほんしゅ</rt></ruby>','Kobe beef, and the sake breweries of Nada'],
+    ['<ruby>日本海<rt>にほんかい</rt></ruby>から<ruby>瀬戸内海<rt>せとないかい</rt></ruby>まで<ruby>南北<rt>なんぼく</rt></ruby>に<ruby>広<rt>ひろ</rt></ruby>がり、<ruby>淡路島<rt>あわじしま</rt></ruby>も<ruby>含<rt>ふく</rt></ruby>む','Runs from the Sea of Japan to the Inland Sea, and takes in Awaji island']],
+29:[['<ruby>日本<rt>にほん</rt></ruby>で<ruby>最初<rt>さいしょ</rt></ruby>に<ruby>本格的<rt>ほんかくてき</rt></ruby>な<ruby>都<rt>みやこ</rt></ruby>が<ruby>置<rt>お</rt></ruby>かれた<ruby>地<rt>ち</rt></ruby>','Where Japan’s first permanent capital was built'],
+    ['<ruby>東大寺<rt>とうだいじ</rt></ruby>の<ruby>大仏<rt>だいぶつ</rt></ruby>と、<ruby>公園<rt>こうえん</rt></ruby>を<ruby>歩<rt>ある</rt></ruby>き<ruby>回<rt>まわ</rt></ruby>る<ruby>鹿<rt>しか</rt></ruby>','The Great Buddha of Todai-ji, and deer wandering freely through the park'],
+    ['<ruby>現存<rt>げんそん</rt></ruby>する<ruby>世界最古<rt>せかいさいこ</rt></ruby>の<ruby>木造建築<rt>もくぞうけんちく</rt></ruby>、<ruby>法隆寺<rt>ほうりゅうじ</rt></ruby>','Horyu-ji, the oldest wooden building standing anywhere in the world']],
+30:[['みかんと<ruby>梅<rt>うめ</rt></ruby>の<ruby>生産量<rt>せいさんりょう</rt></ruby>がどちらも<ruby>日本一<rt>にほんいち</rt></ruby>','Japan’s top grower of both mikan and ume plums'],
+    ['<ruby>空海<rt>くうかい</rt></ruby>が<ruby>開<rt>ひら</rt></ruby>いた<ruby>高野山<rt>こうやさん</rt></ruby>と、<ruby>熊野古道<rt>くまのこどう</rt></ruby>','Mt. Koya, founded by Kukai, and the Kumano pilgrimage trails'],
+    ['パンダの<ruby>繁殖<rt>はんしょく</rt></ruby>で<ruby>知<rt>し</rt></ruby>られる<ruby>白浜<rt>しらはま</rt></ruby>','Shirahama, known for breeding giant pandas']],
+31:[['<ruby>人口<rt>じんこう</rt></ruby>が<ruby>日本<rt>にほん</rt></ruby>で<ruby>最<rt>もっと</rt></ruby>も<ruby>少<rt>すく</rt></ruby>ない<ruby>県<rt>けん</rt></ruby>','The least populated prefecture in Japan'],
+    ['<ruby>海沿<rt>うみぞ</rt></ruby>いに<ruby>広<rt>ひろ</rt></ruby>がる<ruby>日本最大級<rt>にほんさいだいきゅう</rt></ruby>の<ruby>砂丘<rt>さきゅう</rt></ruby>','Vast sand dunes running along the coast'],
+    ['<ruby>二十世紀梨<rt>にじっせいきなし</rt></ruby>と、<ruby>水木<rt>みずき</rt></ruby>しげるの<ruby>妖怪<rt>ようかい</rt></ruby>がいる<ruby>商店街<rt>しょうてんがい</rt></ruby>','Nijisseiki pears, and a shopping street lined with Mizuki Shigeru’s yokai']],
+32:[['<ruby>縁結<rt>えんむす</rt></ruby>びの<ruby>神様<rt>かみさま</rt></ruby>として<ruby>名高<rt>なだか</rt></ruby>い<ruby>出雲大社<rt>いずもたいしゃ</rt></ruby>','Izumo Taisha, the shrine of matchmaking'],
+    ['10<ruby>月<rt>がつ</rt></ruby>に<ruby>全国<rt>ぜんこく</rt></ruby>の<ruby>神々<rt>かみがみ</rt></ruby>が<ruby>集<rt>つど</rt></ruby>うとされる「<ruby>神在月<rt>かみありづき</rt></ruby>」の<ruby>国<rt>くに</rt></ruby>','The land where the gods of Japan are said to gather each October'],
+    ['<ruby>世界遺産<rt>せかいいさん</rt></ruby>の<ruby>石見銀山<rt>いわみぎんざん</rt></ruby>と、<ruby>宍道湖<rt>しんじこ</rt></ruby>のしじみ','The Iwami silver mine, a World Heritage site, and clams from Lake Shinji']],
+33:[['<ruby>桃太郎伝説<rt>ももたろうでんせつ</rt></ruby>ゆかりの<ruby>地<rt>ち</rt></ruby>','The land tied to the Momotaro peach-boy legend'],
+    ['<ruby>雨<rt>あめ</rt></ruby>が<ruby>少<rt>すく</rt></ruby>なく「<ruby>晴<rt>は</rt></ruby>れの<ruby>国<rt>くに</rt></ruby>」を<ruby>名乗<rt>なの</rt></ruby>る','So little rain that it calls itself the land of sunshine'],
+    ['<ruby>白桃<rt>はくとう</rt></ruby>とマスカット、<ruby>日本三名園<rt>にほんさんめいえん</rt></ruby>の<ruby>後楽園<rt>こうらくえん</rt></ruby>','White peaches and muscat grapes, and Korakuen garden']],
+34:[['<ruby>原爆<rt>げんばく</rt></ruby>ドームと<ruby>平和記念公園<rt>へいわきねんこうえん</rt></ruby>','The A-Bomb Dome and the Peace Memorial Park'],
+    ['<ruby>海<rt>うみ</rt></ruby>に<ruby>浮<rt>う</rt></ruby>かぶ<ruby>大鳥居<rt>おおとりい</rt></ruby> ── <ruby>宮島<rt>みやじま</rt></ruby>の<ruby>厳島神社<rt>いつくしまじんじゃ</rt></ruby>','The great torii standing in the sea at Miyajima’s Itsukushima shrine'],
+    ['<ruby>牡蠣<rt>かき</rt></ruby>の<ruby>生産量<rt>せいさんりょう</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>。<ruby>生地<rt>きじ</rt></ruby>を<ruby>重<rt>かさ</rt></ruby>ねて<ruby>焼<rt>や</rt></ruby>くお<ruby>好<rt>この</rt></ruby>み<ruby>焼<rt>や</rt></ruby>き','Japan’s top oyster producer, and okonomiyaki built up in layers']],
+35:[['<ruby>下関<rt>しものせき</rt></ruby>で<ruby>水揚<rt>みずあ</rt></ruby>げされるふぐ','Fugu pufferfish, landed at Shimonoseki'],
+    ['<ruby>本州<rt>ほんしゅう</rt></ruby>の<ruby>西端<rt>せいたん</rt></ruby>。<ruby>関門海峡<rt>かんもんかいきょう</rt></ruby>を<ruby>挟<rt>はさ</rt></ruby>んで<ruby>対岸<rt>たいがん</rt></ruby>と<ruby>向<rt>む</rt></ruby>き<ruby>合<rt>あ</rt></ruby>う','The western tip of Honshu, facing the far shore across the Kanmon strait'],
+    ['<ruby>明治維新<rt>めいじいしん</rt></ruby>を<ruby>導<rt>みちび</rt></ruby>いた<ruby>長州藩<rt>ちょうしゅうはん</rt></ruby>と、<ruby>木造<rt>もくぞう</rt></ruby>の<ruby>錦帯橋<rt>きんたいきょう</rt></ruby>','The Choshu clan that drove the Meiji Restoration, and the wooden Kintai bridge']],
+36:[['400<ruby>年以上続<rt>ねんいじょうつづ</rt></ruby>く<ruby>阿波踊<rt>あわおど</rt></ruby>り','The Awa Odori dance, going strong for over 400 years'],
+    ['<ruby>鳴門海峡<rt>なるとかいきょう</rt></ruby>に<ruby>生<rt>う</rt></ruby>まれる<ruby>渦潮<rt>うずしお</rt></ruby>','The whirlpools that form in the Naruto strait'],
+    ['すだちと、<ruby>日本<rt>にほん</rt></ruby>を<ruby>青<rt>あお</rt></ruby>く<ruby>染<rt>そ</rt></ruby>めてきた<ruby>藍<rt>あい</rt></ruby>','Sudachi citrus, and the indigo that has dyed Japan blue for centuries']],
+37:[['<ruby>面積<rt>めんせき</rt></ruby>が<ruby>日本<rt>にほん</rt></ruby>で<ruby>最<rt>もっと</rt></ruby>も<ruby>小<rt>ちい</rt></ruby>さい<ruby>県<rt>けん</rt></ruby>','The smallest prefecture in Japan by area'],
+    ['<ruby>讃岐<rt>さぬき</rt></ruby>うどん。<ruby>人口<rt>じんこう</rt></ruby>あたりの<ruby>店舗数<rt>てんぽすう</rt></ruby>が<ruby>全国一<rt>ぜんこくいち</rt></ruby>','Sanuki udon, with more noodle shops per head than anywhere else'],
+    ['785<ruby>段<rt>だん</rt></ruby>の<ruby>石段<rt>いしだん</rt></ruby>を<ruby>登<rt>のぼ</rt></ruby>る<ruby>金刀比羅宮<rt>ことひらぐう</rt></ruby>と、<ruby>小豆島<rt>しょうどしま</rt></ruby>のオリーブ','The 785 stone steps up to Kotohira shrine, and the olives of Shodoshima']],
+38:[['みかんの<ruby>生産量<rt>せいさんりょう</rt></ruby>が<ruby>全国<rt>ぜんこく</rt></ruby>トップクラス','One of the biggest mikan growers in the country'],
+    ['<ruby>日本最古<rt>にほんさいこ</rt></ruby>とされる<ruby>道後温泉<rt>どうごおんせん</rt></ruby>','Dogo Onsen, said to be the oldest hot spring in Japan'],
+    ['<ruby>今治<rt>いまばり</rt></ruby>は<ruby>国内最大<rt>こくないさいだい</rt></ruby>のタオル<ruby>産地<rt>さんち</rt></ruby>。『<ruby>坊<rt>ぼ</rt></ruby>っちゃん』の<ruby>舞台<rt>ぶたい</rt></ruby>','Imabari, Japan’s largest towel producer, and the setting of the novel Botchan']],
+39:[['カツオのたたきと、<ruby>大皿<rt>おおざら</rt></ruby>を<ruby>囲<rt>かこ</rt></ruby>む<ruby>皿鉢料理<rt>さわちりょうり</rt></ruby>','Seared bonito tataki, and the shared sawachi feast platter'],
+    ['<ruby>幕末<rt>ばくまつ</rt></ruby>の<ruby>志士<rt>しし</rt></ruby>、<ruby>坂本龍馬<rt>さかもとりょうま</rt></ruby>が<ruby>生<rt>う</rt></ruby>まれた<ruby>地<rt>ち</rt></ruby>','Birthplace of Sakamoto Ryoma, hero of the late shogunate'],
+    ['「<ruby>最後<rt>さいご</rt></ruby>の<ruby>清流<rt>せいりゅう</rt></ruby>」<ruby>四万十川<rt>しまんとがわ</rt></ruby>と、よさこい<ruby>祭<rt>まつり</rt></ruby>り','The Shimanto, called Japan’s last clear river, and the Yosakoi festival']],
+40:[['<ruby>豚骨<rt>とんこつ</rt></ruby>ラーメンと、<ruby>夜<rt>よる</rt></ruby>の<ruby>屋台<rt>やたい</rt></ruby>','Tonkotsu ramen, and streets of night-time yatai food stalls'],
+    ['<ruby>明太子<rt>めんたいこ</rt></ruby>ともつ<ruby>鍋<rt>なべ</rt></ruby>','Mentaiko cod roe and motsunabe hotpot'],
+    ['この<ruby>地方最大<rt>ちほうさいだい</rt></ruby>の<ruby>都市<rt>とし</rt></ruby>。<ruby>山笠<rt>やまかさ</rt></ruby>が<ruby>街<rt>まち</rt></ruby>を<ruby>駆<rt>か</rt></ruby>け<ruby>抜<rt>ぬ</rt></ruby>ける','The largest city in its region, where the Yamakasa floats race through the streets']],
+41:[['<ruby>有田焼<rt>ありたやき</rt></ruby>・<ruby>伊万里焼<rt>いまりやき</rt></ruby>を<ruby>生<rt>う</rt></ruby>んだ<ruby>磁器<rt>じき</rt></ruby>の<ruby>里<rt>さと</rt></ruby>','The birthplace of Arita and Imari porcelain'],
+    ['<ruby>弥生時代<rt>やよいじだい</rt></ruby>の<ruby>環濠集落<rt>かんごうしゅうらく</rt></ruby>、<ruby>吉野<rt>よしの</rt></ruby>ヶ<ruby>里遺跡<rt>りいせき</rt></ruby>','Yoshinogari, a great moated settlement of the Yayoi period'],
+    ['<ruby>秋<rt>あき</rt></ruby>には<ruby>熱気球<rt>ねつききゅう</rt></ruby>の<ruby>世界大会<rt>せかいたいかい</rt></ruby>が<ruby>開<rt>ひら</rt></ruby>かれる','Hosts an international hot-air balloon championship each autumn']],
+42:[['<ruby>鎖国<rt>さこく</rt></ruby>の<ruby>間<rt>あいだ</rt></ruby>、<ruby>唯一西洋<rt>ゆいいつせいよう</rt></ruby>に<ruby>開<rt>ひら</rt></ruby>かれていた<ruby>出島<rt>でじま</rt></ruby>','Dejima — the only window on the West during Japan’s closed centuries'],
+    ['カステラとちゃんぽん','Castella sponge cake and champon noodles'],
+    ['<ruby>島<rt>しま</rt></ruby>の<ruby>数<rt>かず</rt></ruby>が<ruby>日本一<rt>にほんいち</rt></ruby>。<ruby>潜伏<rt>せんぷく</rt></ruby>キリシタンの<ruby>教会群<rt>きょうかいぐん</rt></ruby>','More islands than any other prefecture, and the hidden Christian churches']],
+43:[['<ruby>世界最大級<rt>せかいさいだいきゅう</rt></ruby>のカルデラを<ruby>持<rt>も</rt></ruby>つ<ruby>阿蘇山<rt>あそさん</rt></ruby>','Mt. Aso, with one of the largest calderas in the world'],
+    ['<ruby>馬刺<rt>ばさ</rt></ruby>しと、からし<ruby>蓮根<rt>れんこん</rt></ruby>','Horse sashimi, and lotus root stuffed with mustard'],
+    ['<ruby>畳表<rt>たたみおもて</rt></ruby>に<ruby>使<rt>つか</rt></ruby>う い<ruby>草<rt>ぐさ</rt></ruby>の<ruby>生産量<rt>せいさんりょう</rt></ruby>が<ruby>全国<rt>ぜんこく</rt></ruby>の99%','Grows 99% of the rush used for Japan’s tatami mats']],
+44:[['<ruby>温泉<rt>おんせん</rt></ruby>の<ruby>湧出量<rt>ゆうしゅつりょう</rt></ruby>も<ruby>源泉<rt>げんせん</rt></ruby>の<ruby>数<rt>かず</rt></ruby>も<ruby>日本一<rt>にほんいち</rt></ruby>','More hot spring water, and more sources, than any other prefecture'],
+    ['<ruby>別府<rt>べっぷ</rt></ruby>の<ruby>地獄<rt>じごく</rt></ruby>めぐりと、<ruby>湯布院<rt>ゆふいん</rt></ruby>の<ruby>湯<rt>ゆ</rt></ruby>','The steaming “hells” of Beppu, and the resort baths of Yufuin'],
+    ['とり<ruby>天<rt>てん</rt></ruby>と、<ruby>関<rt>せき</rt></ruby>さば・<ruby>関<rt>せき</rt></ruby>あじ','Toriten chicken tempura, and prized Seki mackerel and horse mackerel']],
+45:[['マンゴーと、<ruby>地鶏<rt>じどり</rt></ruby>の<ruby>炭火焼<rt>すみびや</rt></ruby>き','Mangoes, and charcoal-grilled jidori chicken'],
+    ['<ruby>日本神話<rt>にほんしんわ</rt></ruby>の<ruby>舞台<rt>ぶたい</rt></ruby>とされる<ruby>高千穂峡<rt>たかちほきょう</rt></ruby>','The Takachiho gorge, setting of Japan’s creation myths'],
+    ['<ruby>日南海岸<rt>にちなんかいがん</rt></ruby>のサーフィンと、プロ<ruby>野球<rt>やきゅう</rt></ruby>のキャンプ<ruby>地<rt>ち</rt></ruby>','Surfing on the Nichinan coast, and spring training for pro baseball teams']],
+46:[['<ruby>今<rt>いま</rt></ruby>も<ruby>噴煙<rt>ふんえん</rt></ruby>を<ruby>上<rt>あ</rt></ruby>げ<ruby>続<rt>つづ</rt></ruby>ける<ruby>桜島<rt>さくらじま</rt></ruby>','Sakurajima, still sending up plumes of ash today'],
+    ['<ruby>黒豚<rt>くろぶた</rt></ruby>と、<ruby>芋焼酎<rt>いもじょうちゅう</rt></ruby>','Black pork, and sweet potato shochu'],
+    ['<ruby>種子島<rt>たねがしま</rt></ruby>のロケット<ruby>発射場<rt>はっしゃじょう</rt></ruby>と、<ruby>屋久島<rt>やくしま</rt></ruby>の<ruby>縄文杉<rt>じょうもんすぎ</rt></ruby>','The Tanegashima rocket launch site, and the ancient cedars of Yakushima']],
+47:[['かつて<ruby>琉球王国<rt>りゅうきゅうおうこく</rt></ruby>だった<ruby>島々<rt>しまじま</rt></ruby>','Islands that were once the independent Ryukyu kingdom'],
+    ['<ruby>珊瑚礁<rt>さんごしょう</rt></ruby>の<ruby>海<rt>うみ</rt></ruby>と、<ruby>屋根<rt>やね</rt></ruby>に<ruby>載<rt>の</rt></ruby>るシーサー','Coral-reef seas, and shisa lions guarding the rooftops'],
+    ['ゴーヤーチャンプルー、<ruby>泡盛<rt>あわもり</rt></ruby>、<ruby>三線<rt>さんしん</rt></ruby>の<ruby>音<rt>ね</rt></ruby>','Goya champuru, awamori spirits, and the twang of the sanshin']],
+};
+
+const ALL = {key:'all', ja:'全国', en:'all Japan', ids:null};
+const REGIONS = [
+  {key:'hok', ja:'北海道', en:'Hokkaido', kana:'ほっかいどう', romaji:'hokkaido', ids:[1],
+   hints:[['<ruby>都府県<rt>とふけん</rt></ruby>はひとつだけ。<ruby>日本<rt>にほん</rt></ruby>の<ruby>面積<rt>めんせき</rt></ruby>の<ruby>約<rt>やく</rt></ruby>22%を<ruby>占<rt>し</rt></ruby>める','A region made up of a single prefecture — about 22% of Japan’s land'],
+          ['<ruby>冬<rt>ふゆ</rt></ruby>は<ruby>流氷<rt>りゅうひょう</rt></ruby>が<ruby>岸<rt>きし</rt></ruby>に<ruby>押<rt>お</rt></ruby>し<ruby>寄<rt>よ</rt></ruby>せ、<ruby>夏<rt>なつ</rt></ruby>は<ruby>涼<rt>すず</rt></ruby>しく<ruby>梅雨<rt>つゆ</rt></ruby>がない','Drift ice reaches the shore in winter; summers are cool and there is no rainy season'],
+          ['<ruby>開拓<rt>かいたく</rt></ruby>の<ruby>歴史<rt>れきし</rt></ruby>と、<ruby>先住民<rt>せんじゅうみん</rt></ruby>アイヌの<ruby>文化<rt>ぶんか</rt></ruby>','A history of frontier settlement, and the culture of the indigenous Ainu']]},
+  {key:'toh', ja:'東北', en:'Tohoku', kana:'とうほく', romaji:'tohoku', ids:[2,3,4,5,6,7],
+   hints:[['<ruby>本州<rt>ほんしゅう</rt></ruby>の<ruby>北部<rt>ほくぶ</rt></ruby>を<ruby>占<rt>し</rt></ruby>める6<ruby>県<rt>けん</rt></ruby>','Six prefectures across the northern end of Honshu'],
+          ['ねぶた、<ruby>七夕<rt>たなばた</rt></ruby>、<ruby>花笠<rt>はながさ</rt></ruby> ── <ruby>夏祭<rt>なつまつ</rt></ruby>りが<ruby>集中<rt>しゅうちゅう</rt></ruby>する','Home to the great summer festivals — Nebuta, Tanabata and the Hanagasa flower-hat dance'],
+          ['<ruby>米<rt>こめ</rt></ruby>・りんご・さくらんぼの<ruby>産地<rt>さんち</rt></ruby>。2011<ruby>年<rt>ねん</rt></ruby>の<ruby>震災<rt>しんさい</rt></ruby>の<ruby>被災地<rt>ひさいち</rt></ruby>','Rice, apples and cherries; the area struck by the 2011 earthquake and tsunami']]},
+  {key:'kan', ja:'関東', en:'Kanto', kana:'かんとう', romaji:'kanto', ids:[8,9,10,11,12,13,14],
+   hints:[['<ruby>首都圏<rt>しゅとけん</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>む7つの<ruby>都県<rt>とけん</rt></ruby>','Seven prefectures, including the capital and its commuter belt'],
+          ['<ruby>日本<rt>にほん</rt></ruby>の<ruby>人口<rt>じんこう</rt></ruby>のおよそ3<ruby>分<rt>ぶん</rt></ruby>の1が<ruby>集中<rt>しゅうちゅう</rt></ruby>する','Roughly a third of Japan’s entire population lives here'],
+          ['<ruby>日本最大<rt>にほんさいだい</rt></ruby>の<ruby>平野<rt>へいや</rt></ruby>が<ruby>広<rt>ひろ</rt></ruby>がり、<ruby>東<rt>ひがし</rt></ruby>は<ruby>太平洋<rt>たいへいよう</rt></ruby>に<ruby>面<rt>めん</rt></ruby>する','Japan’s largest plain, opening east onto the Pacific']]},
+  {key:'chu', ja:'中部', en:'Chubu', kana:'ちゅうぶ', romaji:'chubu', ids:[15,16,17,18,19,20,21,22,23],
+   hints:[['9<ruby>県<rt>けん</rt></ruby>からなり、<ruby>都府県<rt>とふけん</rt></ruby>の<ruby>数<rt>かず</rt></ruby>が<ruby>最<rt>もっと</rt></ruby>も<ruby>多<rt>おお</rt></ruby>い','Nine prefectures — more than any other region'],
+          ['<ruby>日本<rt>にほん</rt></ruby>アルプスと<ruby>富士山<rt>ふじさん</rt></ruby>を<ruby>抱<rt>かか</rt></ruby>える','Contains both the Japan Alps and Mt. Fuji'],
+          ['<ruby>日本海側<rt>にほんかいがわ</rt></ruby>と<ruby>太平洋側<rt>たいへいようがわ</rt></ruby>の<ruby>両方<rt>りょうほう</rt></ruby>に<ruby>面<rt>めん</rt></ruby>する','Reaches both the Sea of Japan and the Pacific coast']]},
+  {key:'kin', ja:'近畿', en:'Kinki', kana:'きんき', romaji:'kinki', ids:[24,25,26,27,28,29,30],
+   alts:['関西','かんさい','kansai'], aka:['関西','Kansai'],
+   hints:[['7つの<ruby>府県<rt>ふけん</rt></ruby>からなり、<ruby>二<rt>ふた</rt></ruby>つの<ruby>古都<rt>こと</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>む','Seven prefectures, taking in two of Japan’s ancient capitals'],
+          ['<ruby>古代<rt>こだい</rt></ruby>から<ruby>日本<rt>にほん</rt></ruby>の<ruby>政治<rt>せいじ</rt></ruby>と<ruby>文化<rt>ぶんか</rt></ruby>の<ruby>中心<rt>ちゅうしん</rt></ruby>だった','The centre of Japanese politics and culture since ancient times'],
+          ['<ruby>日本最大<rt>にほんさいだい</rt></ruby>の<ruby>湖<rt>みずうみ</rt></ruby>と、<ruby>伊勢神宮<rt>いせじんぐう</rt></ruby>がある','Home to Japan’s largest lake, and to the Grand Shrine of Ise']]},
+  {key:'cgk', ja:'中国', en:'Chugoku', kana:'ちゅうごく', romaji:'chugoku', ids:[31,32,33,34,35],
+   hints:[['<ruby>本州<rt>ほんしゅう</rt></ruby>の<ruby>西端<rt>せいたん</rt></ruby>を<ruby>占<rt>し</rt></ruby>める5<ruby>県<rt>けん</rt></ruby>','Five prefectures at the western end of Honshu'],
+          ['<ruby>山陰<rt>さんいん</rt></ruby>と<ruby>山陽<rt>さんよう</rt></ruby>に<ruby>分<rt>わ</rt></ruby>かれ、<ruby>日本海<rt>にほんかい</rt></ruby>と<ruby>瀬戸内海<rt>せとないかい</rt></ruby>に<ruby>面<rt>めん</rt></ruby>する','Split into the San’in and San’yo coasts, facing the Sea of Japan and the Inland Sea'],
+          ['<ruby>出雲大社<rt>いずもたいしゃ</rt></ruby>、<ruby>原爆<rt>げんばく</rt></ruby>ドーム、そして<ruby>大砂丘<rt>だいさきゅう</rt></ruby>','Izumo Taisha, the A-Bomb Dome, and the great sand dunes']]},
+  {key:'shi', ja:'四国', en:'Shikoku', kana:'しこく', romaji:'shikoku', ids:[36,37,38,39],
+   hints:[['4<ruby>県<rt>けん</rt></ruby>からなり、<ruby>本土<rt>ほんど</rt></ruby>4<ruby>島<rt>とう</rt></ruby>で<ruby>最<rt>もっと</rt></ruby>も<ruby>小<rt>ちい</rt></ruby>さい<ruby>島<rt>しま</rt></ruby>','Four prefectures on the smallest of Japan’s four main islands'],
+          ['88ヶ<ruby>所<rt>しょ</rt></ruby>の<ruby>霊場<rt>れいじょう</rt></ruby>を<ruby>巡<rt>めぐ</rt></ruby>るお<ruby>遍路<rt>へんろ</rt></ruby>','The 88-temple pilgrimage circuit walked by white-clad henro'],
+          ['うどん、カツオのたたき、<ruby>阿波踊<rt>あわおど</rt></ruby>り','Udon, seared bonito, and the Awa Odori dance']]},
+  {key:'kyu', ja:'九州・沖縄', en:'Kyushu & Okinawa', kana:'きゅうしゅう', romaji:'kyushu', ids:[40,41,42,43,44,45,46,47],
+   alts:['九州','九州沖縄','kyushuokinawa'],
+   hints:[['<ruby>日本<rt>にほん</rt></ruby>の<ruby>南西部<rt>なんせいぶ</rt></ruby>にある8<ruby>県<rt>けん</rt></ruby>','Eight prefectures across the southwest of Japan'],
+          ['<ruby>火山<rt>かざん</rt></ruby>と<ruby>温泉<rt>おんせん</rt></ruby>が<ruby>多<rt>おお</rt></ruby>く、<ruby>阿蘇山<rt>あそさん</rt></ruby>や<ruby>桜島<rt>さくらじま</rt></ruby>がそびえる','Volcanoes and hot springs everywhere, with Mt. Aso and Sakurajima looming over it'],
+          ['<ruby>古<rt>ふる</rt></ruby>くから<ruby>大陸<rt>たいりく</rt></ruby>への<ruby>玄関口<rt>げんかんぐち</rt></ruby>だった','For centuries, Japan’s gateway to the Asian mainland']]},
+];
+const REGION_OF = {};
+REGIONS.forEach(r => r.ids.forEach(id => REGION_OF[id] = r));
+const REGION_BY_KEY = {};
+REGIONS.forEach(r => REGION_BY_KEY[r.key] = r);
+
+// ---------- answer normalisation ----------
+const SUFFIX = /(県|府|都|道)$/;
+// kanji ender -> [kana ender, romaji ender]
+const ENDER = {'県':['けん','ken'], '府':['ふ','fu'], '都':['と','to'], '道':['どう','do']};
+
+function katakanaToHiragana(s){
+  return s.replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+}
+// A pure normaliser: it never strips a name's own ending, so 京都 stays 京都.
+// Which endings are optional is decided by variantsFor*, which lists both forms.
+function norm(s){
+  s = (s||'').trim().toLowerCase().normalize('NFKC');
+  s = s.replace(/[ōô]/g,'o').replace(/[ūû]/g,'u').replace(/[āâ]/g,'a')
+       .replace(/[ēê]/g,'e').replace(/[īî]/g,'i');
+  s = s.replace(/[\s　'’\-_.・･]/g,'');
+  s = katakanaToHiragana(s);
+  s = s.replace(/(地方|ちほう)$/,'');
+  // long vowels are only ambiguous in romaji: tokyo == toukyou == tōkyō, gunma == gumma
+  if (/^[a-z]+$/.test(s)) s = s.replace(/mm/g,'nm').replace(/ou/g,'o').replace(/oo/g,'o').replace(/uu/g,'u');
+  return s;
+}
+
+// every prefecture answers to its full name and its bare name, in kanji, kana and romaji
+function variantsForPref(id){
+  const ja = MAP.prefs[id].ja, [kana, romaji] = READ[id];
+  const [ks, rs] = ENDER[ja.slice(-1)];
+  // READ holds 北海道's reading with its ender attached; every other entry omits it
+  const kanaBase = kana.endsWith(ks)   ? kana.slice(0, -ks.length)   : kana;
+  const romaBase = romaji.endsWith(rs) ? romaji.slice(0, -rs.length) : romaji;
+  return [ja, ja.slice(0,-1), kanaBase + ks, kanaBase, romaBase + rs, romaBase];
+}
+function acceptedForPref(id){
+  const set = new Set(variantsForPref(id).map(norm));
+  set.delete('');
+  return set;
+}
+function acceptedForRegion(key){
+  const r = REGION_BY_KEY[key];
+  const set = new Set([r.ja, r.kana, r.romaji, ...(r.alts||[])].map(norm));
+  set.delete('');
+  return set;
+}
+const accepted = k => mode === 'region' ? acceptedForRegion(k) : acceptedForPref(k);
+
+// ---------- build the map ----------
+const svg = document.getElementById('map');
+const gOos = document.getElementById('gOos');
+const gOutline = document.getElementById('gOutline');
+const gIn = document.getElementById('gIn');
+const labels = document.getElementById('labels');
+const ring = document.getElementById('ring');
+const nodes = {};
+const IDS = Object.keys(MAP.prefs).map(Number).sort((a,b)=>a-b);
+const SVGNS = 'http://www.w3.org/2000/svg';
+
+for (const id of IDS){
+  const p = MAP.prefs[id];
+  const el = document.createElementNS(SVGNS,'path');
+  el.setAttribute('d', p.d);
+  el.setAttribute('class','pref');
+  el.dataset.id = id;
+  gIn.appendChild(el);
+  nodes[id] = el;
+
+  const t = document.createElementNS(SVGNS,'text');
+  t.setAttribute('class','lbl');
+  t.setAttribute('x', p.c[0]); t.setAttribute('y', p.c[1] + 5);
+  t.textContent = id === 1 ? '北海道' : p.ja.replace(SUFFIX,'');
+  labels.appendChild(t);
+}
+labels.style.display = 'none';
+
+// ---------- game state ----------
+let mode = 'pref';           // 'pref' = name the prefecture, 'region' = name the region
+let region = ALL;            // scope filter, prefecture mode only
+let queue = [], current = null, idx = 0, score = 0, streak = 0, best = 0;
+let attempts = 0, awaitingNext = false, missed = [], hintLevel = 0;
+let results = {};            // key -> 'correct' | 'wrong', kept for the whole round
+
+const $ = s => document.querySelector(s);
+const input = $('#answer'), fb = $('#fb');
+
+const scopeIds = () => mode === 'region' ? IDS : (region.ids || IDS);
+const inScope = id => mode === 'region' || !region.ids || region.ids.includes(id);
+const keyOf = id => mode === 'region' ? REGION_OF[id].key : id;
+const isTarget = id => current !== null && keyOf(id) === current;
+const nameOf = k => mode === 'region' ? REGION_BY_KEY[k].ja : MAP.prefs[k].ja;
+const readingOf = k => mode === 'region' ? [REGION_BY_KEY[k].kana, REGION_BY_KEY[k].romaji] : READ[k];
+const hintsOf = k => mode === 'region' ? REGION_BY_KEY[k].hints : HINTS[k];
+
+// every prefecture's colour is derived from state, so results stay painted
+function paint(){
+  for (const id of IDS){
+    const c = ['pref'];
+    if (!inScope(id)) c.push('oos');
+    const res = results[keyOf(id)];
+    if (isTarget(id) && !awaitingNext) c.push('target');
+    else if (res) c.push(res);
+    nodes[id].setAttribute('class', c.join(' '));
+  }
+}
+
+// out-of-scope fills first, then the region outline, then in-scope fills on top:
+// each in-scope path's stroke is covered by its neighbours' fills, leaving only the outer edge
+function layout(){
+  const ids = scopeIds();
+  gOutline.textContent = '';
+  for (const id of IDS) (ids.includes(id) ? gIn : gOos).appendChild(nodes[id]);
+  if (mode === 'pref' && region.ids){
+    for (const id of ids){
+      const o = document.createElementNS(SVGNS,'path');
+      o.setAttribute('d', MAP.prefs[id].d);
+      gOutline.appendChild(o);
+    }
+  }
+}
+
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0; [a[i],a[j]]=[a[j],a[i]];} return a; }
+
+function startRound(items){
+  queue = shuffle(items ? items.slice()
+        : mode === 'region' ? REGIONS.map(r => r.key) : (region.ids || IDS).slice());
+  idx = 0; score = 0; streak = 0; missed = []; results = {}; current = null;
+  $('#playView').classList.remove('hidden');
+  $('#resultView').classList.add('hidden');
+  layout();
+  next();
+}
+
+function next(){
+  if (idx >= queue.length) return finish();
+  current = queue[idx];
+  attempts = 0; awaitingNext = false; hintLevel = 0;
+  $('#hintBtn').disabled = false; $('#hintBtn').textContent = 'ヒント';
+  $('#revealBtn').disabled = false;
+  paint(); placeRing('');
+  input.value = ''; input.className = ''; input.disabled = false; input.focus();
+  fb.innerHTML = '';
+  $('#submitBtn').textContent = '答える';
+  updateStats();
+}
+
+function placeRing(cls){
+  if (mode === 'region'){ ring.setAttribute('r', 0); return; }   // the whole region is coloured already
+  const b = MAP.prefs[current].b;
+  const cx = (b[0]+b[2])/2, cy = (b[1]+b[3])/2;
+  const r = Math.max(Math.hypot(b[2]-b[0], b[3]-b[1]) / 2 + 26, 46);
+  ring.setAttribute('cx', cx); ring.setAttribute('cy', cy); ring.setAttribute('r', r);
+  ring.setAttribute('class', 'pulse ' + cls);
+}
+
+function updateStats(){
+  $('#sScore').textContent = score;
+  $('#sSeen').textContent = idx + '/' + queue.length;
+  $('#sStreak').textContent = streak;
+  $('#bar').style.width = (queue.length ? idx/queue.length*100 : 0) + '%';
+}
+
+function card(k, extra){
+  const [kana, romaji] = readingOf(k);
+  let meta;
+  if (mode === 'region'){
+    const r = REGION_BY_KEY[k];
+    meta = r.ids.length + '都道府県 · ' + r.ids.map(i => MAP.prefs[i].ja.replace(SUFFIX,'')).join('、');
+    if (r.aka) meta = '別名「' + r.aka[0] + '」 · also called ' + r.aka[1] + '<br>' + meta;
+  } else {
+    const r = REGION_OF[k];
+    meta = r.ja + '地方 · ' + r.en;
+  }
+  return '<div class="card"><div class="kanji">' + nameOf(k) + '</div>' +
+    '<div class="kana">' + kana + ' · ' + romaji.charAt(0).toUpperCase() + romaji.slice(1) + '</div>' +
+    '<div class="meta">' + meta + '</div></div>' + (extra || '');
+}
+
+function submit(){
+  if (awaitingNext){ idx++; next(); return; }
+  const raw = input.value.trim();
+  if (!raw) return;
+  if (accepted(current).has(norm(raw))) {
+    score++; streak++; best = Math.max(best, streak);
+    results[current] = 'correct';
+    awaitingNext = true;
+    paint(); placeRing('ok');
+    input.className = 'ok'; input.disabled = true;
+    fb.innerHTML = '<div class="verdict ok">✓ 正解！ Correct</div>' + card(current);
+    endQuestion();
+  } else {
+    attempts++; streak = 0;
+    input.classList.remove('shake'); void input.offsetWidth; input.className = 'bad shake';
+    if (attempts < 2) {
+      fb.innerHTML = '<div class="verdict bad">✕ ちがいます — もう一度 (1 try left)</div>' +
+        '<div class="yours">あなたの答え: <b>' + escapeHtml(raw) + '</b></div>';
+      input.select();
+    } else {
+      reveal(raw);
+    }
+  }
+  updateStats();
+}
+
+function reveal(raw){
+  results[current] = 'wrong';
+  missed.push(current);
+  streak = 0;
+  awaitingNext = true;
+  paint(); placeRing('bad');
+  input.disabled = true; input.className = 'bad';
+  const yours = raw ? '<div class="yours">あなたの答え: <b>' + escapeHtml(raw) + '</b></div>' : '';
+  fb.innerHTML = '<div class="verdict bad">✕ 正解は…</div>' + card(current, yours);
+  endQuestion();
+  updateStats();
+}
+
+function endQuestion(){
+  $('#hintBtn').disabled = true;
+  $('#revealBtn').disabled = true;
+  $('#submitBtn').textContent = idx + 1 >= queue.length ? '結果を見る' : '次へ →';
+  $('#submitBtn').focus();
+}
+
+// three facts, revealed one at a time; earlier ones stay on screen
+function hint(){
+  if (awaitingNext || hintLevel >= 3) return;
+  hintLevel++;
+  const rows = hintsOf(current).slice(0, hintLevel).map((h, i) =>
+    '<div class="hrow' + (i ? ' more' : '') + '"><span class="hnum">' + (i+1) + '</span>' +
+    '<div><div class="fam">' + h[0] + '</div><div class="famen">' + h[1] + '</div></div></div>').join('');
+  fb.innerHTML = '<div class="verdict hint">ヒント · known for &nbsp;<span style="color:var(--dim);font-weight:400">' +
+    hintLevel + '/3</span></div><div class="card">' + rows + '</div>';
+  if (hintLevel >= 3) $('#hintBtn').disabled = true;
+  else $('#hintBtn').textContent = 'もっと';
+  input.focus();
+}
+
+function finish(){
+  current = null;
+  ring.setAttribute('r', 0);
+  paint();
+  const pct = Math.round(score / queue.length * 100);
+  const rows = missed.map(k => {
+    const [kana, romaji] = readingOf(k);
+    return '<div class="missrow"><span>' + nameOf(k) + '</span><span>' + kana + ' · ' + romaji + '</span></div>';
+  }).join('');
+  $('#playView').classList.add('hidden');
+  const rv = $('#resultView');
+  rv.classList.remove('hidden');
+  const label = mode === 'region' ? '地方' : region.ja;
+  rv.innerHTML = '<div class="results">' +
+    '<div><div class="big">' + score + ' / ' + queue.length + '</div>' +
+    '<div class="sub" style="margin-top:6px">' + pct + '% · 最長連続 ' + best + '</div></div>' +
+    (missed.length
+      ? '<div><div class="prompt">まちがえた' + (mode === 'region' ? '地方' : '都道府県') +
+        ' (' + missed.length + ')</div><div class="misslist">' + rows + '</div></div>'
+      : '<div class="verdict ok">全問正解！ Perfect round 🎌</div>') +
+    '<div class="row"><button class="primary" id="againBtn">もう一度 (' + label + ')</button>' +
+    (missed.length ? '<button id="reviewBtn">まちがえた' + missed.length + '問だけ</button>' : '') +
+    '</div></div>';
+  $('#againBtn').onclick = () => startRound();
+  const rb = $('#reviewBtn'); if (rb) { const m = missed.slice(); rb.onclick = () => startRound(m); }
+  updateStats();
+  $('#sSeen').textContent = queue.length + '/' + queue.length;
+  $('#bar').style.width = '100%';
+}
+
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---------- controls ----------
+$('#submitBtn').onclick = submit;
+$('#hintBtn').onclick = hint;
+$('#revealBtn').onclick = () => { if (!awaitingNext) reveal(input.value.trim()); };
+$('#restartFoot').onclick = () => startRound();
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); submit(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.target === input) return;
+  if ((e.key === 'Enter' || e.key === ' ') && awaitingNext) { e.preventDefault(); submit(); }
+  if (e.key === '?') { e.preventDefault(); hint(); }
+});
+
+$('#modeBtn').onclick = () => {
+  mode = mode === 'pref' ? 'region' : 'pref';
+  const isRegion = mode === 'region';
+  $('#modeBtn').textContent = isRegion ? '地方を当てる' : '都道府県を当てる';
+  $('#regionBtn').classList.toggle('hidden', isRegion);
+  $('#hTitle').textContent = isRegion ? '地方クイズ' : '都道府県クイズ';
+  $('#hSub').textContent = isRegion ? 'Name the highlighted region' : 'Name the highlighted prefecture';
+  $('#prompt').innerHTML = isRegion
+    ? 'オレンジ色の地方は？ &nbsp;·&nbsp; kanji, kana or romaji'
+    : 'オレンジ色の都道府県は？ &nbsp;·&nbsp; kanji, kana or romaji';
+  input.placeholder = isRegion ? '例: 関東 / かんとう / kanto' : '例: 三重県 / みえ / mie';
+  startRound();
+};
+
+let ri = 0;
+const SCOPES = [ALL, ...REGIONS];
+$('#regionBtn').onclick = () => {
+  ri = (ri + 1) % SCOPES.length;
+  region = SCOPES[ri];
+  $('#regionBtn').textContent = region.ja + ' · ' + region.en;
+  startRound();
+};
+
+let showNames = false;
+$('#namesBtn').onclick = () => {
+  showNames = !showNames;
+  labels.style.display = showNames ? '' : 'none';
+  $('#namesBtn').classList.toggle('on', showNames);
+  $('#namesBtn').textContent = showNames ? '名前を隠す' : '名前を表示';
+};
+
+svg.addEventListener('mousemove', e => {
+  const el = e.target.closest('.pref'); if (!el || !showNames) return;
+  el.classList.add('hovered');
+  el.addEventListener('mouseleave', () => el.classList.remove('hovered'), {once:true});
+});
+svg.addEventListener('click', e => {
+  const el = e.target.closest('.pref'); if (!el || !showNames) return;
+  const id = +el.dataset.id;
+  alert(MAP.prefs[id].ja + '  ' + READ[id][0] + '  ' + READ[id][1] + '\n' + REGION_OF[id].ja + '地方');
+});
+
+startRound();
+</script>
+</body>
+</html>
