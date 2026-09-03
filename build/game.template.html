@@ -26,23 +26,25 @@
   .app{display:grid; grid-template-columns:minmax(0,1fr) 380px; height:100vh; height:100dvh}
   /* ---------- map ---------- */
   .mapwrap{position:relative; background:linear-gradient(170deg,var(--sea) 0%,var(--sea-deep) 100%); overflow:hidden; display:flex; align-items:center; justify-content:center}
-  svg{width:100%; height:100%; display:block; touch-action:none}
+  #map{width:100%; height:100%; display:block; touch-action:none}
   .pref{fill:var(--land); stroke:var(--land-edge); stroke-width:1.1; stroke-linejoin:round; vector-effect:non-scaling-stroke}
   .pref.oos{fill:var(--oos); stroke:var(--oos-edge)}
   .pref.hovered{fill:#efe6d4}
   .pref.correct{fill:var(--m-ok)}
   .pref.wrong{fill:var(--m-bad)}
   .pref.target{fill:var(--m-target)}
-  #gOutline path{fill:none; stroke:var(--outline); stroke-width:6; stroke-linejoin:round; opacity:.9}
+  #gOutline path{fill:none; stroke:var(--outline); stroke-width:6; stroke-linejoin:round; opacity:.9;
+                  vector-effect:non-scaling-stroke}
   #ring{fill:none; stroke:var(--m-target); stroke-width:3.2; stroke-dasharray:8 6; opacity:.95;
         vector-effect:non-scaling-stroke; transform-box:fill-box; transform-origin:center}
   #ring.ok{stroke:var(--m-ok)} #ring.bad{stroke:var(--m-bad)}
   #insetbox{fill:none; stroke:#cfe3f3; stroke-width:1.2; stroke-dasharray:5 5; vector-effect:non-scaling-stroke}
-  #insetlabel{fill:#e2eff9; font-size:15px}
-  .lbl{fill:#4b4133; font-size:14px; text-anchor:middle; pointer-events:none; paint-order:stroke;
+  #insetlabel{fill:#e2eff9}
+  .lbl{fill:#4b4133; text-anchor:middle; pointer-events:none; paint-order:stroke;
        stroke:rgba(255,255,255,.92); stroke-width:3px; stroke-linejoin:round}
   @keyframes pulse{0%,100%{opacity:.9;transform:scale(1)}50%{opacity:.35;transform:scale(1.06)}}
   #ring.pulse{animation:pulse 1.9s ease-in-out infinite}
+  #ring.faded{opacity:0 !important}
   .maptop{position:absolute; top:14px; left:14px; right:14px; display:flex; gap:8px; align-items:center; pointer-events:none}
   .chip{pointer-events:auto; background:rgba(255,255,255,.86); border:1px solid #a7c3d5; color:#3a5a72;
         border-radius:999px; padding:6px 13px; font-size:12px; cursor:pointer; backdrop-filter:blur(8px);
@@ -52,6 +54,36 @@
   .chip.mode{border-color:#7aa5c0; color:#12293c; font-weight:600}
   .chip.hidden{display:none}
   .spacer{flex:1}
+  /* ---------- map chrome ---------- */
+  .mapwrap{cursor:grab}
+  .mapwrap.dragging{cursor:grabbing}
+  .mapui{position:absolute; right:16px; bottom:16px; display:flex; flex-direction:column; gap:1px;
+         border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,.18)}
+  .mapui button{width:40px; height:40px; padding:0; border:0; border-radius:0; font-size:16px;
+                background:rgba(14,16,20,.68); color:#e8ecf3; backdrop-filter:blur(10px)}
+  .mapui button:hover{background:rgba(14,16,20,.92); color:#fff}
+  .mapui button.sm{font-size:10px}
+  .mapui button:disabled{color:#69748a}
+  .mapui button:disabled:hover{background:rgba(14,16,20,.68); color:#69748a}
+  .locator{position:absolute; left:16px; bottom:16px; width:104px; padding:5px; cursor:pointer;
+           background:rgba(14,16,20,.9); border:1px solid rgba(255,255,255,.22); border-radius:10px;
+           backdrop-filter:blur(10px); opacity:0; pointer-events:none; transition:opacity .18s ease}
+  .locator.on{opacity:1; pointer-events:auto}
+  .locator svg{display:block; width:100%; height:auto}
+  .locator path{fill:#dfe7ef; stroke:none}
+  .locator #locvp{fill:rgba(255,122,69,.20); stroke:var(--accent); stroke-width:2;
+                  vector-effect:non-scaling-stroke}
+  .maptip{position:absolute; left:50%; bottom:16px; transform:translate(-50%,6px); max-width:min(320px,84%);
+          background:rgba(14,16,20,.86); border:1px solid rgba(255,255,255,.16); border-radius:11px;
+          padding:10px 14px; color:var(--ink); font-size:13px; line-height:1.5; text-align:center;
+          opacity:0; pointer-events:none; transition:opacity .18s ease, transform .18s ease;
+          backdrop-filter:blur(10px)}
+  .maptip.on{opacity:1; transform:translate(-50%,0)}
+  .maptip b{font-size:15px}
+  .maptip span{color:var(--dim); font-size:12px}
+  /* ---------- sheet grip (mobile only) ---------- */
+  .sheetgrip{display:none}
+  .grip{display:block; width:36px; height:4px; border-radius:2px; background:#3a4356; margin:0 auto}
   /* ---------- panel ---------- */
   .panel{background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-width:0}
   .phead{padding:20px 22px 16px; border-bottom:1px solid var(--line)}
@@ -64,7 +96,7 @@
   .slab{font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.09em; margin-top:2px}
   .bar{height:3px; background:var(--panel2)}
   .bar>i{display:block; height:100%; background:var(--accent); transition:width .35s ease}
-  .body{flex:1; padding:22px; overflow-y:auto; display:flex; flex-direction:column}
+  .body{flex:1; min-height:0; padding:22px; overflow-y:auto; display:flex; flex-direction:column}
   .prompt{font-size:13px; color:var(--dim); margin-bottom:10px}
   input[type=text]{
     width:100%; background:var(--panel2); border:1.5px solid var(--line); color:var(--ink);
@@ -111,16 +143,75 @@
   .missrow{background:var(--panel2); padding:9px 13px; display:flex; justify-content:space-between; align-items:baseline; gap:10px}
   .missrow span:last-child{font-size:11px; color:var(--dim)}
   .hidden{display:none}
-  @media (max-width:900px){
-    .app{grid-template-columns:1fr; grid-template-rows:minmax(240px,44vh) 1fr; height:auto; min-height:100dvh}
-    .panel{border-left:0; border-top:1px solid var(--line)}
+  /* tablets keep two columns; only phones get the sheet */
+  @media (max-width:900px) and (min-width:721px){
+    .app{grid-template-columns:minmax(0,1fr) 320px}
+  }
+  /* ---------- phone: full-bleed map, quiz in a bottom sheet ---------- */
+  @media (max-width:720px) and (min-height:501px){
+    html,body{overflow:hidden; overscroll-behavior:none}
+    .app{display:block; height:100dvh}
+    .mapwrap{position:fixed; top:0; left:0; right:0; height:var(--band,52vh);
+             padding-top:env(safe-area-inset-top,0px)}
+    .mapui{right:12px; bottom:12px}
+    .mapui button{width:44px; height:44px}
+    .locator{left:12px; bottom:12px; width:84px}
+    .maptop{top:calc(10px + env(safe-area-inset-top,0px)); left:12px; right:12px}
+    .maptip{bottom:auto; top:calc(12px + env(safe-area-inset-top,0px))}
+    .panel{position:fixed; left:0; right:0; bottom:var(--kb,0px); height:var(--sheet,44vh);
+           border-left:0; border-top:1px solid var(--line); border-radius:18px 18px 0 0;
+           box-shadow:0 -10px 30px rgba(0,0,0,.45); z-index:5;
+           transition:height .22s cubic-bezier(.4,0,.2,1)}
+    .panel.dragging{transition:none}
+    .sheetgrip{display:block; flex:none; padding:9px 16px 2px; touch-action:none; cursor:grab}
+    .chipslot{display:flex; gap:8px; align-items:center; margin-top:9px}
+    .chip{height:36px; padding:0 14px}
+    .phead{display:none}
+    .stats{padding:2px 16px 0; border-bottom:0}
+    .stat{flex:none; padding:8px 0; margin-right:16px; text-align:left; border-right:0;
+          display:flex; align-items:baseline; gap:5px}
+    .snum{font-size:15px}
+    .slab{margin-top:0}
+    .bar{margin:0 16px; border-radius:2px}
+    .body{padding:14px 16px 0}
+    input[type=text]{font-size:17px; height:52px; padding:0 15px}
+    button{min-height:46px}
+    .row{gap:9px}
+    .row button{flex:1}
+    .fb{min-height:0; margin-top:14px}
+    .foot{padding:11px 16px calc(11px + env(safe-area-inset-bottom))}
+    .foot .kbhint{display:none}
+    /* peek: nothing but the answer line, docked above the keyboard */
+    .panel.peek .stats, .panel.peek .bar, .panel.peek .prompt,
+    .panel.peek .fb, .panel.peek .foot, .panel.peek .chipslot{display:none}
+    .panel.peek .body{padding-top:8px; position:relative}
+    .panel.peek #answer{width:calc(100% - 96px)}
+    .panel.peek .row{position:absolute; top:8px; right:16px; margin:0}
+    .panel.peek .row #hintBtn, .panel.peek .row #revealBtn{display:none}
+    .panel.peek #submitBtn{height:52px}
+  }
+  @media (max-height:500px){
+    .app{display:grid; grid-template-columns:minmax(0,1fr) 300px; height:100dvh}
+    .mapwrap{position:static; height:auto; padding-top:0}
+    .panel{position:static; height:auto; bottom:auto; border-left:1px solid var(--line);
+           border-top:0; border-radius:0; box-shadow:none}
+    .sheetgrip, .phead, .foot{display:none}
+    .stats{padding:0}
+    .stat{padding:9px 6px}
+    .snum{font-size:17px}
+    .body{padding:14px 16px}
+    .fb{min-height:0; margin-top:12px}
+    .maptop{top:10px; left:12px; right:12px}
+    .mapui{right:12px; bottom:12px}
+    .locator{left:12px; bottom:12px; width:76px}
   }
 </style>
 </head>
 <body>
 <div class="app">
   <div class="mapwrap">
-    <div class="maptop">
+    <div class="maptop" id="chipHome"></div>
+    <div class="chipbar" id="chipbar" style="display:flex; gap:8px; align-items:center; width:100%">
       <button class="chip mode" id="modeBtn">都道府県を当てる</button>
       <button class="chip" id="regionBtn">全国 · all Japan</button>
       <div class="spacer"></div>
@@ -135,9 +226,24 @@
       <g id="labels"></g>
       <circle id="ring" class="pulse" cx="0" cy="0" r="0"></circle>
     </svg>
+    <div class="mapui">
+      <button id="zInBtn" title="拡大 / zoom in (+)">＋</button>
+      <button id="zOutBtn" title="縮小 / zoom out (−)">−</button>
+      <button id="zFitBtn" class="sm" title="出題地へ / frame the question (f)">出題地</button>
+      <button id="zHomeBtn" class="sm" title="全体 / whole map (0)">全体</button>
+    </div>
+    <div class="locator" id="locator" title="全体に戻す / back to the whole map">
+      <svg id="locmap" viewBox="0 0 __W__ __H__" preserveAspectRatio="xMidYMid meet">
+        <g id="locpaths"></g>
+        <rect id="locvp" rx="12"></rect>
+      </svg>
+    </div>
+    <div class="maptip" id="maptip"></div>
   </div>
 
   <div class="panel">
+    <div class="sheetgrip" id="sheetgrip"><span class="grip"></span>
+      <div class="chipslot" id="chipslot"></div></div>
     <div class="phead">
       <div class="title" id="hTitle">都道府県クイズ</div>
       <div class="sub" id="hSub">Name the highlighted prefecture</div>
@@ -164,8 +270,11 @@
     </div>
 
     <div class="foot">
-      <span><kbd>Enter</kbd> 答える / 次へ</span>
-      <span><kbd>?</kbd> ヒント</span>
+      <span class="kbhint"><kbd>Enter</kbd> 答える / 次へ</span>
+      <span class="kbhint"><kbd>?</kbd> ヒント</span>
+      <span class="kbhint"><kbd>+</kbd><kbd>−</kbd> 拡大縮小</span>
+      <span class="kbhint"><kbd>0</kbd> 全体</span>
+      <span class="kbhint"><kbd>f</kbd> 出題地へ</span>
       <span id="restartFoot" style="cursor:pointer;text-decoration:underline">最初から</span>
     </div>
   </div>
@@ -454,6 +563,132 @@ for (const id of IDS){
 }
 labels.style.display = 'none';
 
+// ---------- map view: one [x,y,w,h] written to the viewBox ----------
+// Strokes already carry vector-effect:non-scaling-stroke, so only text needs
+// counter-scaling; everything else holds its weight at any zoom.
+const mapwrap = document.querySelector('.mapwrap');
+const insetlabel = document.getElementById('insetlabel');
+const locator = document.getElementById('locator');
+const locvp = document.getElementById('locvp');
+const maptip = document.getElementById('maptip');
+const MAXSCALE = 12, MINPPU = {};
+let view = null, home = null, userFramed = false, animRAF = 0;
+
+for (const id of IDS){
+  const p = MAP.prefs[id], t = labels.children[IDS.indexOf(id)];
+  const span = Math.max(p.b[2] - p.b[0], p.b[3] - p.b[1]);
+  // px the name needs / units the prefecture spans = the px-per-unit it becomes legible at
+  MINPPU[id] = Math.max(t.textContent.length * 13, 40) / span;
+  const o = document.createElementNS(SVGNS, 'path');
+  o.setAttribute('d', p.d);
+  document.getElementById('locpaths').appendChild(o);
+}
+
+const wrapBox = () => svg.getBoundingClientRect();
+const scaleOf = () => home[2] / view[2];
+
+// the whole map, letterboxed into the current container — what the game showed before
+function homeFrame(){
+  const r = wrapBox(), a = (r.width / r.height) || 1;
+  let w = MAP.w, h = MAP.w / a;
+  if (h < MAP.h){ h = MAP.h; w = MAP.h * a; }
+  return [(MAP.w - w) / 2, (MAP.h - h) / 2, w, h];
+}
+
+function clampView(v){
+  return [Math.min(Math.max(v[0], home[0]), home[0] + home[2] - v[2]),
+          Math.min(Math.max(v[1], home[1]), home[1] + home[3] - v[3]), v[2], v[3]];
+}
+
+function applyView(){
+  svg.setAttribute('viewBox', view.map(n => Math.round(n * 10) / 10).join(' '));
+  const ppu = wrapBox().width / view[2];           // rendered px per map unit
+  labels.style.fontSize = (13 / ppu) + 'px';
+  insetlabel.style.fontSize = (15 / ppu) + 'px';
+  // a name only earns its place once its prefecture is big enough to hold it
+  for (let i = 0; i < IDS.length; i++)
+    labels.children[i].style.display = ppu >= MINPPU[IDS[i]] ? '' : 'none';
+  const s = scaleOf();
+  ring.classList.toggle('faded', s > 2.5);
+  locator.classList.toggle('on', s > 1.6);
+  locvp.setAttribute('x', view[0]); locvp.setAttribute('y', view[1]);
+  locvp.setAttribute('width', view[2]); locvp.setAttribute('height', view[3]);
+  $('#zOutBtn').disabled = s <= 1.001;
+  $('#zInBtn').disabled = s >= MAXSCALE - .001;
+}
+
+// the point under the cursor or the pinch midpoint stays put
+function zoomAt(cx, cy, k){
+  cancelAnimationFrame(animRAF);
+  const r = wrapBox();
+  const px = view[0] + (cx - r.left) / r.width * view[2];
+  const py = view[1] + (cy - r.top) / r.height * view[3];
+  const w = Math.min(Math.max(view[2] / k, home[2] / MAXSCALE), home[2]);
+  const h = w * view[3] / view[2];
+  view = clampView([px - (px - view[0]) * (w / view[2]),
+                    py - (py - view[1]) * (h / view[3]), w, h]);
+  applyView();
+}
+
+function easeTo(to, ms){
+  cancelAnimationFrame(animRAF);
+  const from = view.slice(), t0 = performance.now();
+  const step = now => {
+    const t = Math.min((now - t0) / ms, 1);
+    const e = t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+    view = from.map((v, i) => v + (to[i] - v) * e);
+    applyView();
+    if (t < 1) animRAF = requestAnimationFrame(step);
+  };
+  animRAF = requestAnimationFrame(step);
+}
+
+function frameOn(bb, pad){
+  const r = wrapBox(), a = (r.width / r.height) || 1;
+  const cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2;
+  const w = Math.min(Math.max((bb[2] - bb[0]) * (1 + pad*2), (bb[3] - bb[1]) * (1 + pad*2) * a,
+                              home[2] / MAXSCALE), home[2]);
+  return clampView([cx - w/2, cy - w/a/2, w, w/a]);
+}
+
+const bboxOf = ids => ids.reduce((a, i) => {
+  const b = MAP.prefs[i].b;
+  return [Math.min(a[0],b[0]), Math.min(a[1],b[1]), Math.max(a[2],b[2]), Math.max(a[3],b[3])];
+}, [1e9, 1e9, -1e9, -1e9]);
+
+// Never tighter than the region: the prefecture alone would hand over the answer.
+// Okinawa lives in the inset box, so its region bbox would frame half the country.
+function questionBox(){
+  if (mode === 'region') return null;
+  if (+current === 47) return [MAP.inset.x, MAP.inset.y,
+                               MAP.inset.x + MAP.inset.w, MAP.inset.y + MAP.inset.h];
+  const ids = REGION_OF[current].ids.filter(i => i !== 47);
+  return bboxOf(ids.length ? ids : REGION_OF[current].ids);
+}
+
+// Only on a phone, only when the visible band is too short for the whole country,
+// and never over a gesture the player made themselves.
+function autoFrame(anim){
+  if (!view || userFramed || current === null) return;
+  const tight = isPhone() && (snap === 'peek' || wrapBox().height < viewportH() * 0.45);
+  const bb = tight ? questionBox() : null;
+  const to = bb ? frameOn(bb, 0.12) : home.slice();
+  if (anim === false) { view = to; applyView(); } else easeTo(to, 320);
+}
+
+function relayout(){
+  const prev = home, prevView = view;
+  home = homeFrame();
+  if (!prevView) view = home.slice();
+  else {
+    const s = prev ? prev[2] / prevView[2] : 1;
+    const cx = prevView[0] + prevView[2]/2, cy = prevView[1] + prevView[3]/2;
+    const w = home[2] / s, h = home[3] / s;
+    view = clampView([cx - w/2, cy - h/2, w, h]);
+  }
+  applyView();
+}
+
 // ---------- game state ----------
 let mode = 'pref';           // 'pref' = name the prefecture, 'region' = name the region
 let region = ALL;            // scope filter, prefecture mode only
@@ -518,7 +753,10 @@ function next(){
   $('#hintBtn').disabled = false; $('#hintBtn').textContent = 'ヒント';
   $('#revealBtn').disabled = false;
   paint(); placeRing('');
-  input.value = ''; input.className = ''; input.disabled = false; input.focus();
+  userFramed = false; autoFrame();
+  input.value = ''; input.className = ''; input.disabled = false;
+  // on a phone the whole map IS the question — don't summon the keyboard over it
+  if (!isPhone()) input.focus();
   fb.innerHTML = '';
   $('#submitBtn').textContent = '答える';
   updateStats();
@@ -596,6 +834,7 @@ function reveal(raw){
 }
 
 function endQuestion(){
+  setSnap('half');                       // let the answer card through on a phone
   $('#hintBtn').disabled = true;
   $('#revealBtn').disabled = true;
   $('#submitBtn').textContent = idx + 1 >= queue.length ? '結果を見る' : '次へ →';
@@ -613,13 +852,16 @@ function hint(){
     hintLevel + '/3</span></div><div class="card">' + rows + '</div>';
   if (hintLevel >= 3) $('#hintBtn').disabled = true;
   else $('#hintBtn').textContent = 'もっと';
-  input.focus();
+  if (isPhone()) { input.blur(); setSnap('full'); } else input.focus();
 }
 
 function finish(){
   current = null;
   ring.setAttribute('r', 0);
   paint();
+  userFramed = false;
+  if (view) easeTo(home.slice(), 320);
+  setSnap('full');
   const pct = Math.round(score / queue.length * 100);
   const rows = missed.map(k => {
     const [kana, romaji] = readingOf(k);
@@ -699,12 +941,223 @@ svg.addEventListener('mousemove', e => {
   el.classList.add('hovered');
   el.addEventListener('mouseleave', () => el.classList.remove('hovered'), {once:true});
 });
-svg.addEventListener('click', e => {
-  const el = e.target.closest('.pref'); if (!el || !showNames) return;
-  const id = +el.dataset.id;
-  alert(MAP.prefs[id].ja + '  ' + READ[id][0] + '  ' + READ[id][1] + '\n' + REGION_OF[id].ja + '地方');
+
+// ---------- map: pan, zoom, and tap-to-inspect ----------
+let tipTimer = 0;
+function showInfo(id){
+  maptip.innerHTML = '<b>' + MAP.prefs[id].ja + '</b> &nbsp;<span>' + READ[id][0] + ' · ' +
+    READ[id][1] + ' · ' + REGION_OF[id].ja + '地方</span>';
+  maptip.classList.add('on');
+  clearTimeout(tipTimer);
+  tipTimer = setTimeout(() => maptip.classList.remove('on'), 2800);
+}
+
+const pointers = new Map();
+let gesture = null, moved = 0, downOn = null;
+
+const onMap = e => !e.target.closest('.mapui, .locator, .maptop, .chipbar');
+
+mapwrap.addEventListener('pointerdown', e => {
+  if (!onMap(e)) return;
+  mapwrap.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  gesture = null; moved = 0;
+  downOn = e.target.closest('.pref');
+  mapwrap.classList.add('dragging');
+});
+mapwrap.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  const a = [...pointers.values()], r = wrapBox();
+  if (a.length === 1){
+    if (gesture && gesture.n === 1){
+      const dx = a[0].x - gesture.x, dy = a[0].y - gesture.y;
+      moved += Math.abs(dx) + Math.abs(dy);
+      if (moved > 5){
+        userFramed = true;
+        cancelAnimationFrame(animRAF);
+        view = clampView([view[0] - dx * view[2] / r.width,
+                          view[1] - dy * view[3] / r.height, view[2], view[3]]);
+        applyView();
+      }
+    }
+    gesture = {n: 1, x: a[0].x, y: a[0].y};
+  } else {
+    const d = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
+    if (gesture && gesture.n === 2 && gesture.d > 0){
+      userFramed = true; moved = 99;
+      zoomAt((a[0].x + a[1].x) / 2, (a[0].y + a[1].y) / 2, d / gesture.d);
+    }
+    gesture = {n: 2, d: d};
+  }
+});
+const endPointer = e => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.delete(e.pointerId);
+  gesture = null;
+  if (!pointers.size){
+    mapwrap.classList.remove('dragging');
+    // a tap, not a drag
+    if (moved <= 5 && showNames && downOn) showInfo(+downOn.dataset.id);
+    downOn = null;
+  }
+};
+mapwrap.addEventListener('pointerup', endPointer);
+mapwrap.addEventListener('pointercancel', endPointer);
+
+mapwrap.addEventListener('wheel', e => {
+  if (!onMap(e)) return;
+  e.preventDefault();
+  userFramed = true;
+  zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0016));
+}, {passive: false});
+
+mapwrap.addEventListener('dblclick', e => {
+  if (!onMap(e)) return;
+  e.preventDefault();
+  userFramed = false; autoFrame();
 });
 
+let lastTap = 0;
+mapwrap.addEventListener('pointerup', e => {
+  if (e.pointerType === 'mouse' || !onMap(e) || moved > 5) return;
+  const now = Date.now();
+  if (now - lastTap < 300){ userFramed = false; autoFrame(); lastTap = 0; }
+  else lastTap = now;
+});
+
+const stepZoom = k => {
+  const r = wrapBox();
+  userFramed = true;
+  zoomAt(r.left + r.width/2, r.top + r.height/2, k);
+};
+$('#zInBtn').onclick = () => stepZoom(1.7);
+$('#zOutBtn').onclick = () => stepZoom(1/1.7);
+$('#zHomeBtn').onclick = () => { userFramed = true; easeTo(home.slice(), 300); };
+$('#zFitBtn').onclick = () => {
+  userFramed = true;
+  const bb = questionBox();
+  easeTo(bb ? frameOn(bb, 0.12) : home.slice(), 320);
+};
+locator.onclick = () => { userFramed = true; easeTo(home.slice(), 300); };
+
+document.addEventListener('keydown', e => {
+  if (e.target === input || e.metaKey || e.ctrlKey) return;
+  if (e.key === '+' || e.key === '=') { e.preventDefault(); stepZoom(1.7); }
+  else if (e.key === '-' || e.key === '_') { e.preventDefault(); stepZoom(1/1.7); }
+  else if (e.key === '0') { e.preventDefault(); userFramed = true; easeTo(home.slice(), 300); }
+  else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); $('#zFitBtn').onclick(); }
+});
+
+// ---------- phone: the sheet, and keeping the map clear of the keyboard ----------
+const app = document.querySelector('.app');
+const panel = document.querySelector('.panel');
+const chipbar = $('#chipbar');
+const phoneMQ = window.matchMedia('(max-width:720px) and (min-height:501px)');
+const vv = window.visualViewport;
+const PEEK = 104;
+let snap = 'half';
+
+const safeProbe = document.createElement('div');
+safeProbe.style.cssText = 'position:fixed;bottom:0;left:0;width:0;pointer-events:none;' +
+                          'height:env(safe-area-inset-bottom,0px)';
+document.body.appendChild(safeProbe);
+
+const isPhone = () => phoneMQ.matches;
+const viewportH = () => (vv ? vv.height : window.innerHeight);
+const keyboardH = () => vv ? Math.max(0, window.innerHeight - (vv.height + vv.offsetTop)) : 0;
+
+function snapHeight(name, h, kb){
+  if (name === 'peek') return PEEK + (kb ? 0 : safeProbe.offsetHeight);
+  const want = name === 'full' ? h * 0.86 : h * 0.46;
+  return Math.round(Math.min(Math.max(want, 240), h - 150));
+}
+
+function syncLayout(){
+  const phone = isPhone();
+  // the chips sit over the map on a desktop and in the sheet's grip on a phone,
+  // where the map's top-left corner belongs to Hokkaido and the Okinawa inset
+  const host = phone ? $('#chipslot') : $('#chipHome');
+  if (chipbar.parentNode !== host) host.appendChild(chipbar);
+  if (!phone){
+    for (const v of ['--band','--sheet','--kb']) app.style.removeProperty(v);
+    panel.classList.remove('peek');
+    relayout();
+    return;
+  }
+  const h = viewportH(), kb = keyboardH();
+  const sheet = snapHeight(snap, h, kb);
+  app.style.setProperty('--kb', kb + 'px');
+  app.style.setProperty('--sheet', sheet + 'px');
+  app.style.setProperty('--band', (h - sheet) + 'px');
+  panel.classList.toggle('peek', snap === 'peek');
+  relayout();
+  autoFrame();
+}
+
+function setSnap(name){
+  if (!isPhone() || snap === name) return;
+  snap = name;
+  syncLayout();
+}
+
+// the keyboard opening is the signal to collapse, not focus — a blur while tapping
+// a button would otherwise reflow the sheet out from under the tap
+if (vv){
+  const onVV = () => {
+    if (!isPhone()) return;
+    const kb = keyboardH();
+    if (kb > 100 && snap !== 'peek') { snap = 'peek'; }
+    else if (kb <= 100 && snap === 'peek') { snap = 'half'; }
+    if (vv.offsetTop) window.scrollTo(0, 0);
+    syncLayout();
+  };
+  vv.addEventListener('resize', onVV);
+  vv.addEventListener('scroll', onVV);
+} else {
+  input.addEventListener('focus', () => setSnap('peek'));
+  input.addEventListener('blur', () => setSnap('half'));
+}
+for (const id of ['#submitBtn', '#hintBtn', '#revealBtn'])
+  $(id).addEventListener('mousedown', e => e.preventDefault());   // tapping must not blur
+
+// drag the grip between peek / half / full
+let drag = null;
+$('#sheetgrip').addEventListener('pointerdown', e => {
+  // the chips live in the grip on a phone — capturing here would swallow their taps
+  if (!isPhone() || e.target.closest('.chipslot')) return;
+  $('#sheetgrip').setPointerCapture(e.pointerId);
+  drag = {y: e.clientY, h: panel.getBoundingClientRect().height};
+  panel.classList.add('dragging');
+});
+$('#sheetgrip').addEventListener('pointermove', e => {
+  if (!drag) return;
+  const h = viewportH();
+  const next = Math.min(Math.max(drag.h - (e.clientY - drag.y), PEEK), h - 150);
+  app.style.setProperty('--sheet', next + 'px');
+  app.style.setProperty('--band', (h - next) + 'px');
+  relayout();
+});
+$('#sheetgrip').addEventListener('pointerup', e => {
+  if (!drag) return;
+  const h = viewportH(), kb = keyboardH();
+  const now = panel.getBoundingClientRect().height;
+  let best = 'half', d = Infinity;
+  for (const name of ['peek', 'half', 'full']){
+    const dd = Math.abs(snapHeight(name, h, kb) - now);
+    if (dd < d){ d = dd; best = name; }
+  }
+  drag = null;
+  panel.classList.remove('dragging');
+  snap = best;
+  syncLayout();
+});
+
+phoneMQ.addEventListener('change', syncLayout);
+window.addEventListener('resize', syncLayout);
+window.addEventListener('orientationchange', () => setTimeout(syncLayout, 250));
+
+syncLayout();
 startRound();
 </script>
 </body>
