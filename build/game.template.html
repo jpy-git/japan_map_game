@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>都道府県クイズ — Japan Prefecture Quiz</title>
+<title>都道府県クイズ — Map Quiz</title>
 <style>
   :root{
     --bg:#0e1014; --panel:#161a22; --panel2:#1d2230; --line:#2a3140;
@@ -13,6 +13,7 @@
     --sea:#6fb0e0; --sea-deep:#5b97c8;
     --land:#f8f3e9; --land-edge:#c3b096;
     --oos:#a9c4da; --oos-edge:#8fadc8;
+    --back:#b6c3ca; --back-edge:#9aa9b1; --back-ink:#5f6e79;
     --m-target:#ee6a2b; --m-ok:#2da76f; --m-bad:#d83f52;
     --outline:#1e3d58;
   }
@@ -28,6 +29,12 @@
   .mapwrap{position:relative; background:linear-gradient(170deg,var(--sea) 0%,var(--sea-deep) 100%); overflow:hidden; display:flex; align-items:center; justify-content:center}
   #map{width:100%; height:100%; display:block; touch-action:none}
   .pref{fill:var(--land); stroke:var(--land-edge); stroke-width:1.1; stroke-linejoin:round; vector-effect:non-scaling-stroke}
+  /* land that is on the map but not in the game: desaturated, so it reads as
+     scenery rather than as an out-of-scope county waiting to be clicked */
+  #gBack path{fill:var(--back); stroke:var(--back-edge); stroke-width:1; stroke-linejoin:round;
+              vector-effect:non-scaling-stroke; pointer-events:none}
+  #backlabel{fill:var(--back-ink); text-anchor:middle; pointer-events:none; letter-spacing:.05em}
+  .locator #locback{fill:#aeb8c2}
   .pref.oos{fill:var(--oos); stroke:var(--oos-edge)}
   .pref.hovered{fill:#efe6d4}
   .pref.correct{fill:var(--m-ok)}
@@ -48,10 +55,12 @@
   .maptop{position:absolute; top:14px; left:14px; right:14px; display:flex; gap:8px; align-items:center; pointer-events:none}
   .chip{pointer-events:auto; background:rgba(255,255,255,.86); border:1px solid #a7c3d5; color:#3a5a72;
         border-radius:999px; padding:6px 13px; font-size:12px; cursor:pointer; backdrop-filter:blur(8px);
-        box-shadow:0 1px 3px rgba(20,50,70,.12)}
+        box-shadow:0 1px 3px rgba(20,50,70,.12); white-space:nowrap}
   .chip:hover{color:#12293c; border-color:#7aa5c0; background:#fff}
   .chip.on{color:#fff; background:#3d6280; border-color:#3d6280}
   .chip.mode{border-color:#7aa5c0; color:#12293c; font-weight:600}
+  .chip.country{background:#3d6280; border-color:#3d6280; color:#fff; font-weight:600}
+  .chip.country:hover{background:#2f5069; color:#fff}
   .chip.hidden{display:none}
   .spacer{flex:1}
   /* ---------- map chrome ---------- */
@@ -62,7 +71,7 @@
   .mapui button{width:40px; height:40px; padding:0; border:0; border-radius:0; font-size:16px;
                 background:rgba(14,16,20,.68); color:#e8ecf3; backdrop-filter:blur(10px)}
   .mapui button:hover{background:rgba(14,16,20,.92); color:#fff}
-  .mapui button.sm{font-size:10px}
+  .mapui button.sm{font-size:9.5px; letter-spacing:-.2px; white-space:nowrap}
   .mapui button:disabled{color:#69748a}
   .mapui button:disabled:hover{background:rgba(14,16,20,.68); color:#69748a}
   .locator{position:absolute; left:16px; bottom:16px; width:104px; padding:5px; cursor:pointer;
@@ -120,6 +129,7 @@
   .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.hint{color:var(--hint)}
   .card{background:var(--panel2); border:1px solid var(--line); border-radius:11px; padding:15px 17px}
   .kanji{font-size:31px; font-weight:600; letter-spacing:.04em}
+  .kanji.long{font-size:24px}
   .kana{font-size:14px; color:var(--dim); margin-top:5px}
   .meta{font-size:12px; color:var(--dim); margin-top:9px; padding-top:9px; border-top:1px solid var(--line); line-height:1.6}
   .yours{font-size:12px; color:var(--dim); margin-top:10px}
@@ -129,18 +139,20 @@
   .hnum{flex:none; width:19px; height:19px; border-radius:50%; background:var(--line); color:var(--dim);
         font-size:11px; display:flex; align-items:center; justify-content:center; margin-top:2px}
   .fam{font-size:15.5px; line-height:2.05}
+  .fam.plain{line-height:1.6; font-size:15px}
   .fam ruby{ruby-position:over; -webkit-ruby-position:before}
   .fam rt{color:#79c2ff; font-size:.52em; font-weight:400; letter-spacing:.02em;
           transform:translateY(2px); user-select:none}
   .famen{font-size:12.5px; color:var(--dim); line-height:1.55; margin-top:6px}
   .foot{padding:13px 22px; border-top:1px solid var(--line); font-size:11px; color:#606a7c; display:flex; gap:14px; flex-wrap:wrap}
   kbd{background:var(--panel2); border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:1px 5px; font-size:10px; font-family:inherit}
+  .credit{flex-basis:100%; color:#4d566a; font-size:10px}
   /* ---------- results ---------- */
   .results{display:flex; flex-direction:column; gap:14px}
   .big{font-size:44px; font-weight:700; line-height:1}
   .misslist{display:flex; flex-direction:column; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden}
   .missrow{background:var(--panel2); padding:9px 13px; display:flex; justify-content:space-between; align-items:baseline; gap:10px}
-  .missrow span:last-child{font-size:11px; color:var(--dim)}
+  .missrow span:last-child{font-size:11px; color:var(--dim); text-align:right}
   .hidden{display:none}
   /* tablets keep two columns; only phones get the sheet */
   @media (max-width:900px) and (min-width:721px){
@@ -163,8 +175,9 @@
            transition:height .22s cubic-bezier(.4,0,.2,1)}
     .panel.noanim{transition:none}
     .sheetgrip{display:block; flex:none; padding:11px 16px 0}
-    .chipslot{display:flex; gap:8px; align-items:center}
-    .chip{height:36px; padding:0 14px}
+    .chipslot{display:flex; gap:8px; align-items:center; overflow-x:auto; scrollbar-width:none}
+    .chipslot::-webkit-scrollbar{display:none}
+    .chip{height:36px; padding:0 14px; flex:none}
     .phead{display:none}
     .stats{padding:2px 16px 0; border-bottom:0}
     .stat{flex:none; padding:8px 0; margin-right:16px; text-align:left; border-right:0;
@@ -211,28 +224,32 @@
   <div class="mapwrap">
     <div class="maptop" id="chipHome"></div>
     <div class="chipbar" id="chipbar" style="display:flex; gap:8px; align-items:center; width:100%">
+      <button class="chip country" id="countryBtn">🇯🇵 日本</button>
       <button class="chip mode" id="modeBtn">都道府県を当てる</button>
-      <button class="chip" id="regionBtn">全国 · all Japan</button>
+      <button class="chip" id="scopeBtn">全国 · all Japan</button>
       <div class="spacer"></div>
       <button class="chip" id="namesBtn">名前を表示</button>
     </div>
-    <svg id="map" viewBox="0 0 __W__ __H__" preserveAspectRatio="xMidYMid meet">
+    <svg id="map" preserveAspectRatio="xMidYMid meet">
+      <g id="gBack"></g>
+      <text id="backlabel"></text>
       <g id="gOos"></g>
       <g id="gOutline"></g>
       <g id="gIn"></g>
-      <rect id="insetbox" x="__IX__" y="__IY__" width="__IW__" height="__IH__" rx="6"></rect>
-      <text id="insetlabel" x="__ILX__" y="__ILY__">沖縄</text>
+      <rect id="insetbox" rx="6"></rect>
+      <text id="insetlabel"></text>
       <g id="labels"></g>
       <circle id="ring" class="pulse" cx="0" cy="0" r="0"></circle>
     </svg>
     <div class="mapui">
-      <button id="zInBtn" title="拡大 / zoom in (+)">＋</button>
-      <button id="zOutBtn" title="縮小 / zoom out (−)">−</button>
-      <button id="zFitBtn" class="sm" title="出題地へ / frame the question (f)">出題地</button>
-      <button id="zHomeBtn" class="sm" title="全体 / whole map (0)">全体</button>
+      <button id="zInBtn">＋</button>
+      <button id="zOutBtn">−</button>
+      <button id="zFitBtn" class="sm"></button>
+      <button id="zHomeBtn" class="sm"></button>
     </div>
-    <div class="locator" id="locator" title="全体に戻す / back to the whole map">
-      <svg id="locmap" viewBox="0 0 __W__ __H__" preserveAspectRatio="xMidYMid meet">
+    <div class="locator" id="locator">
+      <svg id="locmap" preserveAspectRatio="xMidYMid meet">
+        <path id="locback"></path>
         <g id="locpaths"></g>
         <rect id="locvp" rx="12"></rect>
       </svg>
@@ -256,34 +273,29 @@
 
     <div class="body">
       <div id="playView">
-        <div class="prompt" id="prompt">オレンジ色の都道府県は？ &nbsp;·&nbsp; kanji, kana or romaji</div>
-        <input type="text" id="answer" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="例: 三重県 / みえ / mie">
+        <div class="prompt" id="prompt"></div>
+        <input type="text" id="answer" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
         <div class="row">
-          <button class="primary" id="submitBtn">答える</button>
-          <button id="hintBtn">ヒント</button>
-          <button id="revealBtn">答えを見る</button>
+          <button class="primary" id="submitBtn"></button>
+          <button id="hintBtn"></button>
+          <button id="revealBtn"></button>
         </div>
         <div class="fb" id="fb"></div>
       </div>
       <div id="resultView" class="hidden"></div>
     </div>
 
-    <div class="foot">
-      <span class="kbhint"><kbd>Enter</kbd> 答える / 次へ</span>
-      <span class="kbhint"><kbd>?</kbd> ヒント</span>
-      <span class="kbhint"><kbd>+</kbd><kbd>−</kbd> 拡大縮小</span>
-      <span class="kbhint"><kbd>0</kbd> 全体</span>
-      <span class="kbhint"><kbd>f</kbd> 出題地へ</span>
-      <span id="restartFoot" style="cursor:pointer;text-decoration:underline">最初から</span>
-    </div>
+    <div class="foot" id="foot"></div>
   </div>
 </div>
 
 <script>
-const MAP = __DATA__;
+const MAPS = {jp: __JP_DATA__, uk: __UK_DATA__};
+
+// ===================================================================== Japan ===
 
 // id: [kana, romaji]
-const READ = {
+const JP_READ = {
   1:['ほっかいどう','hokkaido'],   2:['あおもり','aomori'],     3:['いわて','iwate'],
   4:['みやぎ','miyagi'],           5:['あきた','akita'],        6:['やまがた','yamagata'],
   7:['ふくしま','fukushima'],      8:['いばらき','ibaraki'],    9:['とちぎ','tochigi'],
@@ -304,7 +316,7 @@ const READ = {
 
 // Three things each prefecture is known for. Revealed one at a time.
 // None of these may contain the prefecture's own name, or another prefecture's name.
-const HINTS = {
+const JP_HINTS = {
  1:[['<ruby>日本最北<rt>にほんさいほく</rt></ruby>の<ruby>地<rt>ち</rt></ruby>。<ruby>面積<rt>めんせき</rt></ruby>は<ruby>日本一<rt>にほんいち</rt></ruby>で、<ruby>全国<rt>ぜんこく</rt></ruby>の<ruby>約<rt>やく</rt></ruby>2<ruby>割<rt>わり</rt></ruby>を<ruby>占<rt>し</rt></ruby>める','The northernmost region, and by far the largest — about a fifth of the whole country'],
     ['<ruby>味噌<rt>みそ</rt></ruby>ラーメン、ジンギスカン、<ruby>豊<rt>ゆた</rt></ruby>かな<ruby>海<rt>うみ</rt></ruby>の<ruby>幸<rt>さち</rt></ruby>','Miso ramen, grilled mutton "jingisukan", and superb seafood'],
     ['2<ruby>月<rt>がつ</rt></ruby>の<ruby>雪<rt>ゆき</rt></ruby>まつりと、<ruby>夏<rt>なつ</rt></ruby>のラベンダー<ruby>畑<rt>ばたけ</rt></ruby>','The February snow festival and summer lavender fields']],
@@ -448,8 +460,7 @@ const HINTS = {
     ['ゴーヤーチャンプルー、<ruby>泡盛<rt>あわもり</rt></ruby>、<ruby>三線<rt>さんしん</rt></ruby>の<ruby>音<rt>ね</rt></ruby>','Goya champuru, awamori spirits, and the twang of the sanshin']],
 };
 
-const ALL = {key:'all', ja:'全国', en:'all Japan', ids:null};
-const REGIONS = [
+const JP_REGIONS = [
   {key:'hok', ja:'北海道', en:'Hokkaido', kana:'ほっかいどう', romaji:'hokkaido', ids:[1],
    hints:[['<ruby>都府県<rt>とふけん</rt></ruby>はひとつだけ。<ruby>日本<rt>にほん</rt></ruby>の<ruby>面積<rt>めんせき</rt></ruby>の<ruby>約<rt>やく</rt></ruby>22%を<ruby>占<rt>し</rt></ruby>める','A region made up of a single prefecture — about 22% of Japan’s land'],
           ['<ruby>冬<rt>ふゆ</rt></ruby>は<ruby>流氷<rt>りゅうひょう</rt></ruby>が<ruby>岸<rt>きし</rt></ruby>に<ruby>押<rt>お</rt></ruby>し<ruby>寄<rt>よ</rt></ruby>せ、<ruby>夏<rt>なつ</rt></ruby>は<ruby>涼<rt>すず</rt></ruby>しく<ruby>梅雨<rt>つゆ</rt></ruby>がない','Drift ice reaches the shore in winter; summers are cool and there is no rainy season'],
@@ -485,22 +496,17 @@ const REGIONS = [
           ['<ruby>火山<rt>かざん</rt></ruby>と<ruby>温泉<rt>おんせん</rt></ruby>が<ruby>多<rt>おお</rt></ruby>く、<ruby>阿蘇山<rt>あそさん</rt></ruby>や<ruby>桜島<rt>さくらじま</rt></ruby>がそびえる','Volcanoes and hot springs everywhere, with Mt. Aso and Sakurajima looming over it'],
           ['<ruby>古<rt>ふる</rt></ruby>くから<ruby>大陸<rt>たいりく</rt></ruby>への<ruby>玄関口<rt>げんかんぐち</rt></ruby>だった','For centuries, Japan’s gateway to the Asian mainland']]},
 ];
-const REGION_OF = {};
-REGIONS.forEach(r => r.ids.forEach(id => REGION_OF[id] = r));
-const REGION_BY_KEY = {};
-REGIONS.forEach(r => REGION_BY_KEY[r.key] = r);
 
-// ---------- answer normalisation ----------
-const SUFFIX = /(県|府|都|道)$/;
-// kanji ender -> [kana ender, romaji ender]
-const ENDER = {'県':['けん','ken'], '府':['ふ','fu'], '都':['と','to'], '道':['どう','do']};
+
+// A prefecture answers to its full name and its bare name, in kanji, kana and
+// romaji. The normaliser never strips an ending itself, so 京都 stays 京都.
+const JP_SUFFIX = /(県|府|都|道)$/;
+const JP_ENDER = {'県':['けん','ken'], '府':['ふ','fu'], '都':['と','to'], '道':['どう','do']};
 
 function katakanaToHiragana(s){
   return s.replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
 }
-// A pure normaliser: it never strips a name's own ending, so 京都 stays 京都.
-// Which endings are optional is decided by variantsFor*, which lists both forms.
-function norm(s){
+function jpNorm(s){
   s = (s||'').trim().toLowerCase().normalize('NFKC');
   s = s.replace(/[ōô]/g,'o').replace(/[ūû]/g,'u').replace(/[āâ]/g,'a')
        .replace(/[ēê]/g,'e').replace(/[īî]/g,'i');
@@ -511,82 +517,819 @@ function norm(s){
   if (/^[a-z]+$/.test(s)) s = s.replace(/mm/g,'nm').replace(/ou/g,'o').replace(/oo/g,'o').replace(/uu/g,'u');
   return s;
 }
+const jpCap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
-// every prefecture answers to its full name and its bare name, in kanji, kana and romaji
-function variantsForPref(id){
-  const ja = MAP.prefs[id].ja, [kana, romaji] = READ[id];
-  const [ks, rs] = ENDER[ja.slice(-1)];
-  // READ holds 北海道's reading with its ender attached; every other entry omits it
-  const kanaBase = kana.endsWith(ks)   ? kana.slice(0, -ks.length)   : kana;
-  const romaBase = romaji.endsWith(rs) ? romaji.slice(0, -rs.length) : romaji;
-  return [ja, ja.slice(0,-1), kanaBase + ks, kanaBase, romaBase + rs, romaBase];
-}
-function acceptedForPref(id){
-  const set = new Set(variantsForPref(id).map(norm));
-  set.delete('');
-  return set;
-}
-function acceptedForRegion(key){
-  const r = REGION_BY_KEY[key];
-  const set = new Set([r.ja, r.kana, r.romaji, ...(r.alts||[])].map(norm));
-  set.delete('');
-  return set;
-}
-const accepted = k => mode === 'region' ? acceptedForRegion(k) : acceptedForPref(k);
+const PACK_JP = {
+  key:'jp', lang:'ja', chip:'🇯🇵 日本', map:MAPS.jp, regions:JP_REGIONS,
+  scopes:[{key:'all', name:'全国', label:'全国 · all Japan', ids:null}].concat(
+          JP_REGIONS.map(r => ({key:r.key, name:r.ja, label:r.ja+' · '+r.en, ids:r.ids}))),
 
-// ---------- build the map ----------
-const svg = document.getElementById('map');
-const gOos = document.getElementById('gOos');
-const gOutline = document.getElementById('gOutline');
-const gIn = document.getElementById('gIn');
-const labels = document.getElementById('labels');
-const ring = document.getElementById('ring');
-const nodes = {};
-const IDS = Object.keys(MAP.prefs).map(Number).sort((a,b)=>a-b);
+  nameOf: id => MAPS.jp.units[id].ja,
+  subOf:  id => JP_READ[id][0] + ' · ' + jpCap(JP_READ[id][1]),
+  mapLabel: id => +id === 1 ? '北海道' : MAPS.jp.units[id].ja.replace(JP_SUFFIX,''),
+  hintsOf: id => JP_HINTS[id],
+  hintHtml: h => '<div class="fam">' + h[0] + '</div><div class="famen">' + h[1] + '</div>',
+  metaOf: id => JP_REGION_OF[id].ja + '地方 · ' + JP_REGION_OF[id].en,
+  tipOf: id => '<b>' + MAPS.jp.units[id].ja + '</b> &nbsp;<span>' + JP_READ[id][0] + ' · ' +
+               JP_READ[id][1] + ' · ' + JP_REGION_OF[id].ja + '地方</span>',
+
+  regionName: r => r.ja,
+  regionSub:  r => r.kana + ' · ' + jpCap(r.romaji),
+  regionMeta: r => (r.aka ? '別名「' + r.aka[0] + '」 · also called ' + r.aka[1] + '<br>' : '') +
+                   r.ids.length + '都道府県 · ' +
+                   r.ids.map(i => MAPS.jp.units[i].ja.replace(JP_SUFFIX,'')).join('、'),
+
+  norm: jpNorm,
+  unitVariants(id){
+    const ja = MAPS.jp.units[id].ja, [kana, romaji] = JP_READ[id];
+    const [ks, rs] = JP_ENDER[ja.slice(-1)];
+    // JP_READ holds 北海道's reading with its ender attached; every other entry omits it
+    const kanaBase = kana.endsWith(ks)   ? kana.slice(0, -ks.length)   : kana;
+    const romaBase = romaji.endsWith(rs) ? romaji.slice(0, -rs.length) : romaji;
+    return [ja, ja.slice(0,-1), kanaBase + ks, kanaBase, romaBase + rs, romaBase];
+  },
+  regionVariants: r => [r.ja, r.kana, r.romaji].concat(r.alts || []),
+
+  t:{
+    docTitle:'都道府県クイズ — Japan Prefecture Quiz',
+    titleUnit:'都道府県クイズ',  titleRegion:'地方クイズ',
+    subUnit:'Name the highlighted prefecture', subRegion:'Name the highlighted region',
+    toUnit:'都道府県を当てる',   toRegion:'地方を当てる',
+    promptUnit:'オレンジ色の都道府県は？ &nbsp;·&nbsp; kanji, kana or romaji',
+    promptRegion:'オレンジ色の地方は？ &nbsp;·&nbsp; kanji, kana or romaji',
+    phUnit:'例: 三重県 / みえ / mie', phRegion:'例: 関東 / かんとう / kanto',
+    answer:'答える', next:'次へ →', seeResults:'結果を見る',
+    hint:'ヒント', more:'もっと', reveal:'答えを見る',
+    showNames:'名前を表示', hideNames:'名前を隠す',
+    correct:'✓ 正解！ Correct', retry:'✕ ちがいます — もう一度 (1 try left)',
+    theAnswer:'✕ 正解は…', yours:'あなたの答え: ', hintHead:'ヒント · known for',
+    missedUnit:'まちがえた都道府県', missedRegion:'まちがえた地方',
+    perfect:'全問正解！ Perfect round 🎌',
+    again:'もう一度', reviewMissed: n => 'まちがえた' + n + '問だけ',
+    bestStreak:'最長連続', restart:'最初から',
+    zoomIn:'拡大 / zoom in (+)', zoomOut:'縮小 / zoom out (−)',
+    fit:'出題地', fitTitle:'出題地へ / frame the question (f)',
+    whole:'全体', wholeTitle:'全体 / whole map (0)',
+    locator:'全体に戻す / back to the whole map',
+    kb:['<kbd>Enter</kbd> 答える / 次へ', '<kbd>?</kbd> ヒント',
+        '<kbd>+</kbd><kbd>−</kbd> 拡大縮小', '<kbd>0</kbd> 全体', '<kbd>f</kbd> 出題地へ'],
+  },
+};
+const JP_REGION_OF = {};
+JP_REGIONS.forEach(r => r.ids.forEach(id => JP_REGION_OF[id] = r));
+
+// ============================================================= United Kingdom ===
+// Keyed by the name in the map data, so the content never drifts out of step with
+// the numeric ids the builder happens to hand out.
+//   name  — what to display and ask for, when it differs from the source's name
+//   short — the label drawn on the map, when the full name will not fit
+//   sub   — the line under the answer; only ever shown once the question is over
+//   alts  — extra spellings accepted. Case, spacing, punctuation, accents and a
+//           leading "the/county/city of/isle of" are handled by the normaliser.
+//   hints — three things it is known for. None may contain its own name.
+const UK_INFO = {
+// ---------------------------------------------------------------- England ----
+'Bedfordshire':{sub:'County town: Bedford', alts:['beds'], hints:[
+  'A small, flat county on the Great Ouse, between the Chilterns and the Fens',
+  'Whipsnade Zoo, the Shuttleworth aircraft collection, and Luton’s car plant',
+  'John Bunyan wrote most of The Pilgrim’s Progress while jailed in its county town']},
+'Berkshire':{sub:'County town: Reading', alts:['berks','royal berkshire'], hints:[
+  'The Royal County — the monarch’s other principal residence stands above the Thames here',
+  'Ascot’s racecourse, Eton College, and the atomic weapons works at Aldermaston',
+  'A silicon corridor along the M4, with Reading and Slough at its centre']},
+'Bristol':{sub:'A city that is also a county', alts:['city of bristol'], hints:[
+  'A city and a county in its own right, cut through by the Avon Gorge',
+  'Brunel’s suspension bridge, and his ship the SS Great Britain',
+  'Banksy’s home town, and once the second port of England']},
+'Buckinghamshire':{sub:'County town: Aylesbury', alts:['bucks'], hints:[
+  'Chiltern beechwoods, red kites overhead, and the Prime Minister’s retreat at Chequers',
+  'Bletchley Park, where the Enigma ciphers were broken',
+  'Roald Dahl wrote in a hut at Great Missenden; Milton Keynes fills its northern end']},
+'Cambridgeshire':{sub:'County town: Cambridge', alts:['cambs'], hints:[
+  'Drained fenland, flat to the horizon, with eel country in the middle of it',
+  'A university founded in 1209, and the Fitzwilliam Museum',
+  'Oliver Cromwell’s home ground, and the cathedral called the Ship of the Fens']},
+'Cheshire':{sub:'County town: Chester', alts:[], hints:[
+  'Roman walls and black-and-white galleried Rows in its county town',
+  'A rich dairy plain that gives its name to a crumbly white cheese',
+  'Jodrell Bank’s radio telescope, and a golden triangle of footballers’ houses']},
+'Cornwall':{sub:'Administrative centre: Truro', alts:['kernow'], hints:[
+  'The far south-western tip of Britain, with its own Celtic language and flag',
+  'Tin mines, pasties, and the Eden Project’s bubble-domes',
+  'Land’s End, St Michael’s Mount, and the Minack theatre cut into a cliff']},
+'Cumbria':{sub:'County town: Carlisle', alts:[], hints:[
+  'England’s highest ground and its deepest lakes',
+  'Wordsworth at Dove Cottage, Beatrix Potter at Hill Top',
+  'Scafell Pike, Windermere, and the Sellafield nuclear site']},
+'Derbyshire':{sub:'County town: Matlock', alts:['derbys'], hints:[
+  'The southern Pennines — gritstone edges, limestone dales, and Britain’s first national park',
+  'Chatsworth House, and villages that dress their wells with flowers each summer',
+  'The Derwent Valley mills, where the factory system was invented']},
+'Devon':{sub:'County town: Exeter', alts:['devonshire'], hints:[
+  'The only English county with two entirely separate coastlines',
+  'Two moors — one with wild ponies and a famous prison, one running down to the sea',
+  'Cream teas, Plymouth Hoe, and Agatha Christie’s house at Greenway']},
+'Dorset':{sub:'County town: Dorchester', alts:['dorsetshire'], hints:[
+  'The Jurassic Coast, with Durdle Door and Lulworth Cove',
+  'Thomas Hardy’s Wessex, and a giant cut into the chalk above Cerne Abbas',
+  'Chesil Beach, Corfe Castle, and the resorts of Bournemouth and Weymouth']},
+'Durham':{sub:'County town: Durham', alts:['co durham'], hints:[
+  'A Norman cathedral and castle on a loop of the Wear, together a World Heritage Site',
+  'Coalfield country — pit villages, brass bands, and a Miners’ Gala every July',
+  'Prince Bishops once ruled it almost as a kingdom of their own']},
+'East Riding of Yorkshire':{short:'East Riding', sub:'County town: Beverley',
+ alts:['east riding','east yorkshire','the east riding'], hints:[
+  'Chalk wolds running out to Flamborough Head and the long spit at Spurn',
+  'A great fishing and ferry port stands on the Humber here',
+  'The Humber Bridge, and the city Philip Larkin made his home']},
+'East Sussex':{sub:'County town: Lewes', alts:[], hints:[
+  'Where the Normans landed in 1066, and the battle that followed',
+  'Beachy Head’s white cliffs, and the Seven Sisters beyond them',
+  'Brighton’s Royal Pavilion and pier, and opera at Glyndebourne']},
+'Essex':{sub:'County town: Chelmsford', alts:[], hints:[
+  'England’s longest coastline — creeks, saltings and estuary mud',
+  'Colchester, the oldest recorded town in Britain, burned by Boudica',
+  'Stansted Airport, Southend’s mile-long pier, and Dagenham’s car plant']},
+'Gloucestershire':{sub:'County town: Gloucester', alts:['glos'], hints:[
+  'The Cotswold escarpment, the Severn Vale, and the Forest of Dean',
+  'Cheese-rolling down Cooper’s Hill, and the Severn Bore surfing upstream',
+  'Cheltenham’s racecourse and spa, and cathedral cloisters that played Hogwarts']},
+'Greater London':{short:'London', sub:'32 boroughs and the City',
+ alts:['london','city of london','greater london'], hints:[
+  'Thirty-two boroughs plus a square-mile city, ringed by an orbital motorway',
+  'The Thames runs through it, under a bascule bridge by the Tower',
+  'Westminster, the Underground, and nine million people']},
+'Greater Manchester':{sub:'Ten metropolitan boroughs', alts:['manchester'], hints:[
+  'The first industrial city in the world, and the cotton warehouses to prove it',
+  'Two football clubs, one red and one blue, and the Haçienda',
+  'The Bridgewater Canal, the Ship Canal, and the first passenger railway']},
+'Hampshire':{sub:'County town: Winchester', alts:['hants'], hints:[
+  'New Forest ponies, and chalk streams full of trout',
+  'Portsmouth’s dockyard, home of HMS Victory and the Mary Rose',
+  'Jane Austen lived and died here; the Titanic sailed from Southampton']},
+'Herefordshire':{sub:'County town: Hereford', alts:['herefords'], hints:[
+  'Cider orchards, red-coated cattle, and the Welsh border',
+  'A cathedral holding the Mappa Mundi and a chained library',
+  'The Wye winds through it, and the SAS are based here']},
+'Hertfordshire':{sub:'County town: Hertford', alts:['herts'], hints:[
+  'London’s northern commuter belt, with two post-war new towns',
+  'The Roman city of Verulamium, and the martyr who gave St Albans its name',
+  'Leavesden studios, where the Harry Potter films were shot']},
+'Isle of Wight':{sub:'County town: Newport', alts:['iow','wight'], hints:[
+  'A diamond-shaped island across the Solent',
+  'The Needles, three chalk stacks with a lighthouse on the end',
+  'Queen Victoria’s Osborne House, Cowes Week, and a famous 1970 rock festival']},
+'Kent':{sub:'County town: Maidstone', alts:[], hints:[
+  'The Garden of England — orchards, hop gardens and oast houses',
+  'White cliffs at Dover, and the shortest crossing to France',
+  'A cathedral where an archbishop was murdered, and Chaucer’s pilgrims on the road to it']},
+'Lancashire':{sub:'County town: Preston', alts:['lancs'], hints:[
+  'Cotton-mill towns under the West Pennine moors',
+  'Blackpool’s Tower, its illuminations and its Golden Mile',
+  'The Pendle witch trials of 1612, and hotpot']},
+'Leicestershire':{sub:'County town: Leicester', alts:['leics'], hints:[
+  'Melton Mowbray pork pies, and Stilton cheese',
+  'Richard III was found under a council car park here in 2012',
+  'Hunting country — the Quorn — and the field where Bosworth was fought']},
+'Lincolnshire':{sub:'County town: Lincoln', alts:['lincs'], hints:[
+  'Big skies over drained fens, with a low chalk wold behind them',
+  'Bomber County — dozens of wartime airfields, and the Dambusters at Scampton',
+  'A cathedral once the tallest building on earth; Isaac Newton was born nearby']},
+'Merseyside':{sub:'Five metropolitan boroughs', alts:[], hints:[
+  'A great Atlantic port, its waterfront crowned by the Liver Building',
+  'The Beatles, the Cavern Club, and Penny Lane',
+  'The Grand National at Aintree, and two rival football clubs']},
+'Norfolk':{sub:'County town: Norwich', alts:[], hints:[
+  'The Broads — a lattice of shallow lakes left by medieval peat digging',
+  'Sandringham, and the wide empty sands at Holkham',
+  'Nelson was born here, and it is known for its turkeys and its mustard']},
+'North Yorkshire':{sub:'County town: Northallerton', alts:[], hints:[
+  'England’s largest county — dales in the west, moors in the east',
+  'A Minster and a street called the Shambles in its walled city',
+  'Whitby’s abbey, where Dracula came ashore, and the ruins of Fountains and Rievaulx']},
+'Northamptonshire':{sub:'County town: Northampton', alts:['northants'], hints:[
+  'The county of squires and spires, right in the middle of England',
+  'Shoemaking country, and the Silverstone Grand Prix circuit',
+  'Althorp, where Diana, Princess of Wales, is buried']},
+'Northumberland':{sub:'County town: Alnwick', alts:[], hints:[
+  'England’s emptiest county, and the darkest skies in the country',
+  'Hadrian’s Wall crosses it, and a castle here stood in for Hogwarts',
+  'Lindisfarne’s holy island, and the seabird colonies of the Farnes']},
+'Nottinghamshire':{sub:'County town: Nottingham', alts:['notts'], hints:[
+  'Sherwood Forest, and the hollow Major Oak propped up inside it',
+  'A castle, a sheriff, and an outlaw in Lincoln green',
+  'D. H. Lawrence’s pit villages, and Trent Bridge cricket ground']},
+'Oxfordshire':{sub:'County town: Oxford', alts:['oxon'], hints:[
+  'The oldest university in the English-speaking world',
+  'Blenheim Palace, where Winston Churchill was born',
+  'The upper Thames, which is called the Isis as it runs through the city']},
+'Rutland':{sub:'County town: Oakham', alts:[], hints:[
+  'The smallest historic county in England — its motto is "much in little"',
+  'A huge reservoir with ospreys nesting beside it',
+  'Abolished in 1974 and restored in 1997, to enormous local satisfaction']},
+'Shropshire':{sub:'County town: Shrewsbury', alts:['salop'], hints:[
+  'The gorge where iron was first smelted with coke, and the first iron bridge thrown across it',
+  'The Long Mynd, the Wrekin, and Wenlock Edge',
+  'Charles Darwin was born in its county town, and A. E. Housman wrote of its lads']},
+'Somerset':{sub:'County town: Taunton', alts:['somersetshire'], hints:[
+  'The Levels — wet moor and withy beds below the Mendip hills',
+  'Cheddar Gorge, Wells Cathedral, and Glastonbury Tor',
+  'Cider, the Roman baths at Bath, and Exmoor along its western edge']},
+'South Yorkshire':{sub:'Four metropolitan boroughs', alts:[], hints:[
+  'Steel and cutlery, and the invention of stainless steel',
+  'The Full Monty was filmed here, and so was Kes',
+  'Orgreave and the strike of 1984; the Crucible hosts the snooker']},
+'Staffordshire':{sub:'County town: Stafford', alts:['staffs'], hints:[
+  'The Potteries — six towns of bottle kilns, Wedgwood and Spode',
+  'Alton Towers, and the brewing capital at Burton upon Trent',
+  'Cannock Chase, and a hoard of Anglo-Saxon gold turned up in a field here in 2009']},
+'Suffolk':{sub:'County town: Ipswich', alts:[], hints:[
+  'Constable painted the Stour valley here, and Gainsborough was born in it',
+  'The Sutton Hoo ship burial, and Britten’s festival at Aldeburgh',
+  'Timber-framed wool towns like Lavenham, and Newmarket’s racing stables']},
+'Surrey':{sub:'County town: Guildford', alts:[], hints:[
+  'England’s most wooded county, in the stockbroker belt south-west of the capital',
+  'Box Hill on the North Downs, and the RHS gardens at Wisley',
+  'The Derby at Epsom, golf at Wentworth, and Brooklands, the first purpose-built race track']},
+'Tyne and Wear':{sub:'Five metropolitan boroughs', alts:['tyne & wear','tyneside'], hints:[
+  'Shipyards and coal staithes on two rivers, with seven bridges across one of them',
+  'The Angel of the North stands beside the A1 here',
+  'Geordie and Mackem, and the Great North Run each September']},
+'Warwickshire':{sub:'County town: Warwick', alts:['warks','warwicks'], hints:[
+  'Shakespeare was born in a half-timbered house on Henley Street',
+  'A vast medieval castle above the Avon, and Kenilworth’s red ruins',
+  'George Eliot country, and the school where rugby was supposedly invented']},
+'West Midlands':{sub:'Seven metropolitan boroughs', alts:['west midlands county'], hints:[
+  'The Black Country, so named for the smoke of its forges',
+  'Britain’s second city, with more miles of canal than Venice',
+  'The Bullring, Cadbury’s model village at Bournville, and the birth of heavy metal']},
+'West Sussex':{sub:'County town: Chichester', alts:[], hints:[
+  'The South Downs run its whole length to the sea',
+  'Goodwood’s racing and Festival of Speed, and Gatwick Airport',
+  'Arundel Castle, and a Roman palace uncovered at Fishbourne']},
+'West Yorkshire':{sub:'Five metropolitan boroughs', alts:[], hints:[
+  'Wool and worsted — mill towns in the valleys of the Aire and the Calder',
+  'The Brontë sisters wrote in a parsonage at Haworth',
+  'Saltaire’s model village, and a city that grew rich on cloth']},
+'Wiltshire':{sub:'County town: Trowbridge', alts:['wilts'], hints:[
+  'Salisbury Plain, and the army that has trained across it for a century',
+  'A stone circle raised 5,000 years ago, and a larger one at Avebury',
+  'Silbury Hill, white horses cut into the chalk, and the lions at Longleat']},
+'Worcestershire':{sub:'County town: Worcester', alts:['worcs'], hints:[
+  'The Malvern Hills, and the spring water bottled at their foot',
+  'Edward Elgar was born here and wrote the Enigma Variations',
+  'A famous brown sauce, and the last battle of the Civil War in 1651']},
+
+// --------------------------------------------------------------- Scotland ----
+'Aberdeen City':{short:'Aberdeen', sub:'Scotland’s third city', alts:['aberdeen'], hints:[
+  'The Granite City — built of silver-grey stone that glitters after rain',
+  'Europe’s oil capital, with helicopters ferrying crews out to the North Sea',
+  'Two universities, a working harbour, and the Doric dialect']},
+'Aberdeenshire':{sub:'Administrative centre: Aberdeen', alts:[], hints:[
+  'Castle country — Balmoral, Craigievar, and Dunnottar on its cliff',
+  'Royal Deeside, with the Cairngorms rising along its western edge',
+  'The whisky glens of Speyside, and the fishing fleet at Peterhead']},
+'Angus':{sub:'Administrative centre: Forfar', alts:['forfarshire'], hints:[
+  'Red sandstone cliffs at Arbroath, and the smoked haddock named after the town',
+  'Glamis Castle, where the Queen Mother spent her childhood',
+  'The 1320 declaration asserting Scottish independence was sealed at its abbey']},
+'Argyll and Bute':{short:'Argyll & Bute', sub:'Administrative centre: Lochgilphead',
+ alts:['argyll','argyllshire','argyle and bute'], hints:[
+  'A long, sea-cut west coast with Mull, Islay, Jura and Iona offshore',
+  'Kilmartin Glen’s standing stones, and the hill fort of Dunadd',
+  'Oban’s ferry pier, and the naval base on the Gare Loch']},
+'City of Edinburgh':{short:'Edinburgh', sub:'The capital of Scotland', alts:['edinburgh'], hints:[
+  'A castle on a volcanic plug, above a valley that used to be a loch',
+  'The largest arts festival in the world takes it over every August',
+  'The Royal Mile, Arthur’s Seat, and Hogmanay in Princes Street']},
+'Clackmannanshire':{short:'Clacks', sub:'Administrative centre: Alloa',
+ alts:['clacks','the wee county'], hints:[
+  'The smallest mainland council area in Scotland — "the wee county"',
+  'The Ochil Hills rise abruptly behind its little towns',
+  'Brewing and glassmaking at Alloa, on the upper Forth']},
+'Dumfries and Galloway':{short:'Dumfries & Gall.', sub:'Administrative centre: Dumfries',
+ alts:['galloway','dumfries & galloway'], hints:[
+  'Scotland’s south-west corner, along the Solway Firth',
+  'Robert Burns spent his last years here and is buried in its main town',
+  'Runaway weddings at Gretna Green, and a dark-sky forest park']},
+'Dundee City':{short:'Dundee', sub:'Scotland’s fourth city', alts:['dundee'], hints:[
+  'Jute, jam and journalism — and the publisher of the Beano',
+  'Captain Scott’s ship Discovery is berthed on its waterfront',
+  'A V&A design museum opened on the Tay here in 2018']},
+'East Ayrshire':{short:'E. Ayrshire', sub:'Administrative centre: Kilmarnock', alts:[], hints:[
+  'Kilmarnock is its main town, and gave its name to a blended whisky',
+  'Loudoun Hill, where Robert the Bruce beat an English army in 1307',
+  'The Doon valley’s worked-out coalfield, inland from the Firth of Clyde']},
+'East Dunbartonshire':{short:'E. Dunbarton.', sub:'Administrative centre: Kirkintilloch', alts:[], hints:[
+  'Prosperous commuter suburbs along the northern edge of Glasgow',
+  'The Antonine Wall crosses it, with the Campsie Fells behind',
+  'Bearsden and Milngavie, where the West Highland Way begins']},
+'East Lothian':{sub:'Administrative centre: Haddington', alts:[], hints:[
+  'Golf links along the Forth — Muirfield, North Berwick and Gullane',
+  'The Bass Rock, white with gannets, a mile offshore',
+  'Tantallon Castle on its cliff, and the battle fought at Dunbar in 1650']},
+'East Renfrewshire':{short:'E. Renfrew.', sub:'Administrative centre: Giffnock', alts:[], hints:[
+  'A small, leafy area covering Glasgow’s southern suburbs',
+  'Newton Mearns and Barrhead — and the best exam results in Scotland, year after year',
+  'Whitelee, one of Europe’s largest onshore wind farms, on the moor above']},
+'Eilean Siar':{name:'Na h-Eileanan Siar', short:'Western Isles',
+ sub:'The Western Isles · Stornoway',
+ alts:['western isles','the western isles','outer hebrides','the outer hebrides','eilean siar',
+       'comhairle nan eilean siar','hebrides'], hints:[
+  'A 130-mile chain of islands off the north-west, from Lewis down to Barra',
+  'Harris tweed, Gaelic-speaking crofts, and the standing stones at Callanish',
+  'Ferries from Ullapool and Uig, and white shell-sand beaches at Luskentyre']},
+'Falkirk':{sub:'Administrative centre: Falkirk', alts:[], hints:[
+  'The Kelpies — two thirty-metre horse heads beside the canal',
+  'A boat lift shaped like a wheel, joining two canals at different levels',
+  'Two battles were fought here, in 1298 and 1746; Grangemouth refines the oil']},
+'Fife':{sub:'Administrative centre: Glenrothes', alts:['kingdom of fife'], hints:[
+  'A self-styled kingdom between two firths, the Forth and the Tay',
+  'The home of golf, and Scotland’s oldest university',
+  'Fishing villages strung along the East Neuk, and a royal palace at Falkland']},
+'Glasgow City':{short:'Glasgow', sub:'Scotland’s largest city', alts:['glasgow'], hints:[
+  'Once the second city of the Empire, built on shipbuilding on the Clyde',
+  'Charles Rennie Mackintosh’s art nouveau, and the Burrell Collection',
+  'The Barras market, the Barrowland Ballroom, and two enormous football clubs']},
+'Highland':{sub:'Administrative centre: Inverness', alts:['the highlands','highlands'], hints:[
+  'The largest council area in the United Kingdom — bigger than Wales',
+  'Ben Nevis, Glen Coe, and a long loch said to hold a monster',
+  'The Cuillin of Skye, the moor at Culloden, and the road to the Isles']},
+'Inverclyde':{sub:'Administrative centre: Greenock', alts:[], hints:[
+  'A short stretch of the lower Clyde, where the river opens into a firth',
+  'Greenock and Port Glasgow, once famous for sugar refining and shipbuilding',
+  'James Watt was born here, and liners once called at its ocean terminal']},
+'Midlothian':{sub:'Administrative centre: Dalkeith', alts:[], hints:[
+  'A small area immediately south of the Scottish capital',
+  'Rosslyn Chapel’s strange carvings, made famous by The Da Vinci Code',
+  'A mining museum at Newtongrange, and the Pentland Hills above']},
+'Moray':{sub:'Administrative centre: Elgin', alts:['morayshire'], hints:[
+  'More whisky distilleries than anywhere else on earth, along the Spey',
+  'A dry, unusually sunny coast on the firth, with dolphins offshore',
+  'Elgin’s ruined cathedral, the Lantern of the North, and RAF Lossiemouth']},
+'North Ayrshire':{short:'N. Ayrshire', sub:'Administrative centre: Irvine', alts:[], hints:[
+  'It takes in Arran — "Scotland in miniature" — and the two Cumbraes',
+  'Ferries sail from Ardrossan; the Norse were beaten off Largs in 1263',
+  'Irvine’s new town, and Goat Fell rising from the sea']},
+'North Lanarkshire':{short:'N. Lanark.', sub:'Administrative centre: Motherwell', alts:[], hints:[
+  'Steel country — the Ravenscraig works closed in 1992',
+  'Coatbridge, Airdrie and Cumbernauld, strung east of Glasgow along the M8',
+  'Summerlee’s museum of ironworking, and the Forth and Clyde Canal']},
+'Orkney Islands':{short:'Orkney', sub:'Administrative centre: Kirkwall', alts:['orkney'], hints:[
+  'Some seventy islands off the north coast, about twenty of them inhabited',
+  'Skara Brae, the Ring of Brodgar and Maeshowe — the finest Neolithic sites in Europe',
+  'Scapa Flow, where the German fleet scuttled itself in 1919']},
+'Perth and Kinross':{short:'Perth & Kinross', sub:'Administrative centre: Perth',
+ alts:['perthshire','perth & kinross'], hints:[
+  'The gateway to the Highlands, where the lowlands come to an end',
+  'Scone, where Scottish kings were crowned on the Stone of Destiny',
+  'Giant trees at Dunkeld and Birnam, and the Falls of Bruar']},
+'Renfrewshire':{sub:'Administrative centre: Paisley', alts:[], hints:[
+  'A ruined abbey, and the teardrop pattern named after its mill town',
+  'Glasgow Airport sits inside it',
+  'The Erskine Bridge, and thread mills that once employed thousands']},
+'Scottish Borders':{short:'Borders', sub:'Administrative centre: Newtown St Boswells',
+ alts:['borders','the borders'], hints:[
+  'Rolling hills and ruined abbeys along the Tweed, hard against England',
+  'Sir Walter Scott built Abbotsford here, and is buried at Dryburgh',
+  'Reiver country — tweed mills, and the summer Common Ridings']},
+'Shetland Islands':{short:'Shetland', sub:'Administrative centre: Lerwick',
+ alts:['shetland','zetland'], hints:[
+  'The most northerly part of the UK — closer to Bergen than to Edinburgh',
+  'Up Helly Aa, a midwinter fire festival that ends with a galley burning',
+  'Small tough ponies, fine knitwear, and the Sullom Voe oil terminal']},
+'South Ayrshire':{short:'S. Ayrshire', sub:'Administrative centre: Ayr', alts:[], hints:[
+  'Robert Burns was born in a cottage at Alloway in 1759',
+  'Culzean Castle on its cliff, and the championship links at Turnberry',
+  'Ailsa Craig offshore, quarried for the granite that curling stones are cut from']},
+'South Lanarkshire':{short:'S. Lanark.', sub:'Administrative centre: Hamilton', alts:[], hints:[
+  'Robert Owen’s model mill village on the Clyde, now a World Heritage Site',
+  'East Kilbride, the first of Scotland’s new towns',
+  'The Falls of Clyde, and orchards in the upper valley']},
+'Stirling':{sub:'Administrative centre: Stirling', alts:['stirlingshire'], hints:[
+  'A castle on a crag guarding the lowest crossing of the Forth',
+  'Bannockburn in 1314, and the bridge where Wallace won in 1297',
+  'The Trossachs, the eastern shore of Loch Lomond, and the Wallace Monument']},
+'West Dunbartonshire':{short:'W. Dunbarton.', sub:'Administrative centre: Dumbarton', alts:[], hints:[
+  'A rock fortress on the Clyde that held out for 1,500 years',
+  'Clydebank, where the Queen Mary and the QE2 were built',
+  'The southern tip of Loch Lomond, and the Blitz of 1941']},
+'West Lothian':{sub:'Administrative centre: Livingston', alts:[], hints:[
+  'Linlithgow Palace, birthplace of Mary, Queen of Scots',
+  'Red bings — spoil heaps left by the world’s first oil-shale industry',
+  'Livingston new town, with the Forth bridges just beyond its northern edge']},
+
+// ------------------------------------------------------------------ Wales ----
+'Blaenau Gwent':{sub:'Administrative centre: Ebbw Vale', alts:[], hints:[
+  'A narrow valleys authority at the head of the Ebbw',
+  'Aneurin Bevan, who founded the National Health Service, was its MP',
+  'Ebbw Vale’s steelworks, once the largest in Europe, closed in 2002']},
+'Bridgend':{sub:'Welsh: Pen-y-bont ar Ogwr', alts:['pen y bont ar ogwr'], hints:[
+  'Porthcawl’s funfair, and the Elvis festival that fills it every autumn',
+  'A town where the Ogmore, Llynfi and Garw valleys meet the sea',
+  'The dunes at Merthyr Mawr, among the highest in Europe']},
+'Caerphilly':{sub:'Welsh: Caerffili', alts:['caerffili'], hints:[
+  'The largest castle in Wales, with a tower that leans further than Pisa’s',
+  'A mild, crumbly white cheese is named after its town',
+  'The Rhymney valley, and the great viaduct that once crossed it at Crumlin']},
+'Cardiff':{sub:'The capital of Wales · Caerdydd', alts:['caerdydd'], hints:[
+  'The capital, and once the greatest coal-exporting port in the world',
+  'The Principality Stadium, and a bay shut off from the sea by a barrage',
+  'A Norman castle given lavish Victorian Gothic interiors, and the Senedd']},
+'Carmarthenshire':{sub:'Welsh: Sir Gaerfyrddin', alts:['sir gaerfyrddin'], hints:[
+  'The largest county in Wales — dairy farms and slow green river valleys',
+  'Dylan Thomas wrote in a boathouse at Laugharne and is buried there',
+  'The National Botanic Garden of Wales, and the castles of the Tywi']},
+'Ceredigion':{sub:'Formerly Cardiganshire', alts:['cardiganshire'], hints:[
+  'A long bay coast where bottlenose dolphins are often seen',
+  'Aberystwyth’s seafront, its cliff railway, and the National Library of Wales',
+  'The Devil’s Bridge falls, and red kites fed daily at Bwlch Nant yr Arian']},
+'Conwy':{sub:'Administrative centre: Conwy', alts:['conway'], hints:[
+  'One of Edward I’s ring of castles, with a walled town beside it',
+  'Llandudno, the largest seaside resort in Wales, under the Great Orme',
+  'Betws-y-Coed, and the smallest house in Britain on its quay']},
+'Denbighshire':{sub:'Welsh: Sir Ddinbych', alts:['sir ddinbych'], hints:[
+  'The Vale of Clwyd, with a heather range along its eastern side',
+  'Rhyl and Prestatyn, side by side on the north coast',
+  'Llangollen’s International Eisteddfod, and an aqueduct on its doorstep']},
+'Flintshire':{sub:'Welsh: Sir y Fflint', alts:['sir y fflint'], hints:[
+  'The Dee estuary, with England on the far bank',
+  'Every Airbus A380 wing was built at Broughton here',
+  'Mold, the healing well at Holywell, and Offa’s Dyke running south']},
+'Gwynedd':{sub:'Administrative centre: Caernarfon', alts:[], hints:[
+  'Snowdon and the highest mountains in Wales',
+  'Caernarfon Castle, where the Prince of Wales was invested in 1969',
+  'Portmeirion’s Italianate village, and the slate quarries above Blaenau Ffestiniog']},
+'Isle of Anglesey':{short:'Anglesey', sub:'Welsh: Ynys Môn',
+ alts:['anglesey','ynys mon','mon'], hints:[
+  'An island across the Menai Strait, reached by two famous bridges',
+  'A village here has the longest place name in Britain',
+  'Once called the granary of Wales; South Stack lighthouse stands on its western cliff']},
+'Merthyr Tydfil':{short:'Merthyr', sub:'Welsh: Merthyr Tudful',
+ alts:['merthyr','merthyr tudful'], hints:[
+  'The iron town that was the largest place in Wales in 1801',
+  'The world’s first steam railway journey started from here in 1804',
+  'Cyfarthfa Castle, and the rising of 1831 fought under a red flag']},
+'Monmouthshire':{sub:'Welsh: Sir Fynwy', alts:['sir fynwy'], hints:[
+  'Tintern Abbey in the Wye valley, painted by Turner and versified by Wordsworth',
+  'Chepstow’s castle and racecourse, where the Wye meets the Severn',
+  'Abergavenny’s food festival, under the Sugar Loaf']},
+'Neath Port Talbot':{short:'Neath P. Talbot', sub:'Two towns, one county',
+ alts:['neath','port talbot','castell nedd port talbot'], hints:[
+  'A vast steelworks beside the M4 — the largest in Britain',
+  'Waterfall country, where four rivers drop over sandstone ledges',
+  'Richard Burton and Anthony Hopkins both grew up here']},
+'Newport':{sub:'Welsh: Casnewydd', alts:['casnewydd'], hints:[
+  'A transporter bridge over the Usk, one of very few left anywhere',
+  'The last great Chartist rising was put down in its streets in 1839',
+  'The Celtic Manor resort, which hosted the 2010 Ryder Cup']},
+'Pembrokeshire':{sub:'Welsh: Sir Benfro', alts:['sir benfro'], hints:[
+  'Britain’s only national park that is almost entirely coastline',
+  'St Davids, the smallest city in Britain, its cathedral hidden in a hollow',
+  'Puffins on Skomer, and oil terminals in Milford Haven']},
+'Powys':{sub:'Administrative centre: Llandrindod Wells', alts:[], hints:[
+  'The largest and emptiest Welsh county, with far more sheep than people',
+  'Hay-on-Wye’s second-hand bookshops and its literary festival',
+  'The Brecon Beacons, Lake Vyrnwy, and a string of Victorian spa towns']},
+'Rhondda Cynon Taf':{short:'Rhondda', sub:'Three valleys in one county',
+ alts:['rhondda','rct','rhondda cynon taff'], hints:[
+  'The most famous of all the coal valleys, sung about around the world',
+  'Pontypridd, where Tom Jones was born',
+  'Its last deep mine closed in 1990; the Taff runs down to the capital']},
+'Swansea':{sub:'Welsh: Abertawe', alts:['abertawe'], hints:[
+  'Wales’s second city, curled around a wide sandy bay',
+  'Dylan Thomas was born here and called it an ugly, lovely town',
+  'The Mumbles, the Gower peninsula, and a market selling cockles and laverbread']},
+'Torfaen':{sub:'Administrative centre: Pontypool', alts:[], hints:[
+  'Blaenavon’s ironworks and Big Pit, together a World Heritage Site',
+  'Cwmbran, the only new town in Wales',
+  'Pontypool, once famous for japanned metalware — and for its rugby forwards']},
+'Vale of Glamorgan':{short:'Vale of Glam.', sub:'Welsh: Bro Morgannwg',
+ alts:['bro morgannwg','the vale'], hints:[
+  'A gentle farmed coast west of the capital, with the airport in the middle of it',
+  'Barry Island’s pleasure beach, and the town Gavin & Stacey was set in',
+  'Llantwit Major’s ancient church, and striped cliffs along the Heritage Coast']},
+'Wrexham':{sub:'Welsh: Wrecsam', alts:['wrecsam'], hints:[
+  'The largest town in north Wales, granted city status in 2022',
+  'Its football club, the third oldest in the world, was bought by two Hollywood actors',
+  'A church tower counted among the Seven Wonders of Wales']},
+
+// ------------------------------------------------------- Northern Ireland ----
+'Antrim':{name:'County Antrim', sub:'North of the Lagan, including most of Belfast',
+ alts:['antrim','aontroim'], hints:[
+  'The Giant’s Causeway’s hexagonal basalt columns, and the Carrick-a-Rede rope bridge',
+  'Nine glens run down to a coast road, with Scotland visible across the water',
+  'Bushmills, the oldest licensed whiskey distillery in the world']},
+'Armagh':{name:'County Armagh', sub:'The ecclesiastical capital of Ireland',
+ alts:['armagh','ard mhacha'], hints:[
+  'Two cathedrals on two hills, both dedicated to St Patrick',
+  'The orchard county, known across Ireland for its Bramley apples',
+  'Navan Fort, seat of the ancient kings of Ulster']},
+'Down':{name:'County Down', sub:'Mourne country, south-east of Belfast',
+ alts:['down','an dun'], hints:[
+  'The Mourne Mountains, which a famous song has sweeping to the sea',
+  'St Patrick is said to be buried in its county town',
+  'Strangford Lough’s islands and seals, and the yard where the Titanic was built']},
+'Fermanagh':{name:'County Fermanagh', sub:'County town: Enniskillen',
+ alts:['fermanagh','fear manach'], hints:[
+  'Lakeland — a third of it is water, split in two by a long lough',
+  'The Marble Arch Caves, and the neoclassical mansion at Castle Coole',
+  'The only county of Northern Ireland with no coastline']},
+'Londonderry':{name:'County Londonderry', sub:'Also called County Derry',
+ alts:['londonderry','derry','county derry','doire'], hints:[
+  'The last completely walled city in Ireland stands above the Foyle',
+  'Seamus Heaney grew up here; the Bogside is on the far side of its walls',
+  'Binevenagh, the Mussenden Temple, and the long strand at Benone']},
+'Tyrone':{name:'County Tyrone', sub:'County town: Omagh',
+ alts:['tyrone','tir eoghain'], hints:[
+  'The largest county in Northern Ireland, and the emptiest',
+  'The Sperrin Mountains run right across its north',
+  'The Ulster American Folk Park, which traces emigration to the New World']},
+};
+
+// Regions: the nine English regions plus the other three nations. Ceremonial
+// counties do not nest perfectly into the statistical regions — Lincolnshire has
+// a foot in Yorkshire and the Humber — so each county is placed where it sits
+// most naturally, and the whole county goes with it.
+const UK_REGIONS = [
+ {key:'ne', name:'North East', sub:'3 counties · Newcastle upon Tyne',
+  alts:['north east england','northeast','ne england'],
+  members:['Northumberland','Tyne and Wear','Durham'], hints:[
+   'England’s smallest region by population, only three counties wide',
+   'A Roman wall marks its northern edge, and a steel angel greets you from the A1',
+   'Coal, shipbuilding, and a brown ale in a clear glass']},
+ {key:'nw', name:'North West', sub:'5 counties · Manchester and Liverpool',
+  alts:['north west england','northwest','nw england'],
+  members:['Cumbria','Lancashire','Greater Manchester','Merseyside','Cheshire'], hints:[
+   'Five counties, from England’s highest fells down to a rich dairy plain',
+   'Two great rival cities, one built on cotton and one on ships',
+   'The world’s first passenger railway ran between them in 1830']},
+ {key:'yh', name:'Yorkshire and the Humber', sub:'4 counties · Leeds and Sheffield',
+  alts:['yorkshire','yorkshire and humber','yorks and the humber','yorkshire & the humber','humber'],
+  members:['North Yorkshire','West Yorkshire','South Yorkshire','East Riding of Yorkshire'], hints:[
+   'God’s own county, split into quarters, plus the estuary at its foot',
+   'Dales, moors and wolds — and a white rose on a blue ground',
+   'Wool in the west, steel in the south, and fishing on the coast']},
+ {key:'em', name:'East Midlands', sub:'6 counties · Nottingham and Leicester',
+  alts:['east midland','the east midlands'],
+  members:['Derbyshire','Nottinghamshire','Lincolnshire','Leicestershire','Rutland',
+           'Northamptonshire'], hints:[
+   'Six counties in the middle of England, mostly east of the M1',
+   'The Peak District at one end of it, the Fens at the other',
+   'Sherwood Forest, Melton pork pies, and the smallest county in the country']},
+ {key:'wm', name:'West Midlands', sub:'6 counties · Birmingham',
+  alts:['west midland','the west midlands','west midlands region'],
+  members:['Shropshire','Staffordshire','West Midlands','Warwickshire','Worcestershire',
+           'Herefordshire'], hints:[
+   'Six counties, running from the Welsh border to the industrial heart of England',
+   'Shakespeare’s birthplace, the Ironbridge Gorge, and the Malvern Hills',
+   'Britain’s second city sits in the middle, with more canals than Venice']},
+ {key:'ee', name:'East of England', sub:'6 counties · Norwich and Cambridge',
+  alts:['east anglia','the east','east england','eastern england'],
+  members:['Norfolk','Suffolk','Cambridgeshire','Essex','Hertfordshire','Bedfordshire'], hints:[
+   'Six counties bulging into the North Sea — the flattest ground in Britain',
+   'The Broads, the Fens, and a coastline of creeks and saltings',
+   'Constable’s valley, a very old university, and London’s northern commuter towns']},
+ {key:'ldn', name:'London', sub:'1 county · 32 boroughs and the City',
+  alts:['greater london','the capital'],
+  members:['Greater London'], hints:[
+   'A region made up of a single county',
+   'Thirty-two boroughs and a square-mile city',
+   'Nine million people inside an orbital motorway']},
+ {key:'se', name:'South East', sub:'9 counties · the most populous English region',
+  alts:['south east england','southeast','se england'],
+  members:['Oxfordshire','Buckinghamshire','Berkshire','Hampshire','Isle of Wight','Surrey',
+           'West Sussex','East Sussex','Kent'], hints:[
+   'Nine counties — the most populous region outside the capital',
+   'The Downs, the Chilterns, the New Forest, and the white cliffs',
+   'Windsor, Oxford, Canterbury, and the shortest crossing to France']},
+ {key:'sw', name:'South West', sub:'7 counties · Bristol and Exeter',
+  alts:['south west england','southwest','sw england','west country','the west country'],
+  members:['Gloucestershire','Bristol','Wiltshire','Somerset','Dorset','Devon','Cornwall'], hints:[
+   'The longest region — a peninsula reaching out into the Atlantic',
+   'Stonehenge, Cheddar Gorge, and the Jurassic Coast',
+   'Cream teas, cider, surfing, and two moors']},
+ {key:'sct', name:'Scotland', sub:'32 council areas · Edinburgh', alts:['alba'],
+  nation:'sco', hints:[
+   'Thirty-two council areas, from the Border hills to the far north',
+   'A parliament at Holyrood, and the highest mountains in Britain',
+   'Whisky, tartan, and something like 790 islands']},
+ {key:'wls', name:'Wales', sub:'22 principal areas · Cardiff', alts:['cymru'],
+  nation:'wal', hints:[
+   'Twenty-two principal areas, with a Senedd in its capital',
+   'Three national parks, and more castles per square mile than anywhere on earth',
+   'A red dragon on the flag, and a language spoken by a fifth of the people']},
+ {key:'nir', name:'Northern Ireland', sub:'6 traditional counties · Belfast',
+  alts:['ulster','n ireland','ni','norn iron'], nation:'ni', hints:[
+   'Six counties, and the only land border the United Kingdom has',
+   'A causeway of hexagonal basalt columns on its north coast',
+   'The largest lake in the British Isles sits at its centre']},
+];
+
+const UK_ID = {};              // map-data name -> numeric id
+for (const id in MAPS.uk.units) UK_ID[MAPS.uk.units[id].name] = +id;
+const UK_KEY = {};             // numeric id -> map-data name, i.e. the UK_INFO key
+for (const k in UK_ID) UK_KEY[UK_ID[k]] = k;
+const ukInfo = id => UK_INFO[UK_KEY[id]];
+const idsOfNation = n => Object.keys(MAPS.uk.units).map(Number)
+                               .filter(i => MAPS.uk.units[i].nation === n);
+UK_REGIONS.forEach(r => {
+  r.ids = r.nation ? idsOfNation(r.nation) : r.members.map(m => UK_ID[m]);
+});
+
+// Spelling is forgiving: case, spaces, hyphens, apostrophes, accents and "&" all
+// go, and so does a leading "the", "county", "city of" or "isle of" — so County
+// Down, county down and Down are one answer, and Ynys Môn matches ynys mon.
+function ukNorm(s){
+  s = (s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  s = s.replace(/&/g,'and').replace(/[^a-z0-9]+/g,'');
+  s = s.replace(/^(theisleof|isleof|cityof|countyof|county|the)(?=.)/,'');
+  return s;
+}
+
+const ukName = id => (ukInfo(id) && ukInfo(id).name) || MAPS.uk.units[id].name;
+const NATION = {eng:'England', sco:'Scotland', wal:'Wales', ni:'Northern Ireland'};
+const UK_LAYER = {eng:'ceremonial county', sco:'council area',
+                  wal:'principal area', ni:'traditional county'};
+const UK_REGION_OF = {};
+// Outside England the region *is* the nation, so naming both would just say
+// "Scotland · Scotland"; say what kind of thing it is instead.
+function ukPlace(id){
+  const n = MAPS.uk.units[id].nation;
+  return n === 'eng' ? UK_REGION_OF[id].name + ' · England'
+                     : NATION[n] + ' · ' + UK_LAYER[n];
+}
+
+const PACK_UK = {
+  key:'uk', lang:'en', chip:'🇬🇧 UK', map:MAPS.uk, regions:UK_REGIONS,
+  scopes:[{key:'all', name:'the UK', label:'All of the UK · 107', ids:null}].concat(
+    [['eng','England','ceremonial counties'], ['sco','Scotland','council areas'],
+     ['wal','Wales','principal areas'], ['ni','Northern Ireland','counties']]
+    .map(([n, name, what]) => ({key:n, name:name, ids:idsOfNation(n),
+      label:name + ' · ' + idsOfNation(n).length + ' ' + what}))),
+
+  nameOf: ukName,
+  subOf:  id => ukInfo(id).sub,
+  mapLabel: id => (ukInfo(id) && ukInfo(id).short) || ukName(id),
+  hintsOf: id => ukInfo(id).hints,
+  hintHtml: h => '<div class="fam plain">' + h + '</div>',
+  metaOf: ukPlace,
+  tipOf: id => '<b>' + ukName(id) + '</b> &nbsp;<span>' + ukInfo(id).sub + ' · ' +
+               ukPlace(id) + '</span>',
+
+  regionName: r => r.name,
+  regionSub:  r => r.sub,
+  regionMeta: r => r.ids.length > 9
+    ? r.ids.length + ' areas · ' + r.ids.slice(0, 8).map(ukName).join(', ') + ', …'
+    : r.ids.map(ukName).join(', '),
+
+  norm: ukNorm,
+  unitVariants: id => [ukName(id), MAPS.uk.units[id].name].concat(ukInfo(id).alts || []),
+  regionVariants: r => [r.name].concat(r.alts || []),
+
+  t:{
+    docTitle:'UK County Quiz — 107 counties and council areas',
+    titleUnit:'UK County Quiz', titleRegion:'UK Region Quiz',
+    subUnit:'Name the highlighted county', subRegion:'Name the highlighted region',
+    toUnit:'Name the county', toRegion:'Name the region',
+    promptUnit:'Which one is highlighted? &nbsp;·&nbsp; spelling is forgiving',
+    promptRegion:'Which region is highlighted? &nbsp;·&nbsp; nine in England, plus the other nations',
+    phUnit:'e.g. Shropshire / Salop', phRegion:'e.g. South West',
+    answer:'Answer', next:'Next →', seeResults:'See results',
+    hint:'Hint', more:'Another', reveal:'Show answer',
+    showNames:'Show names', hideNames:'Hide names',
+    correct:'✓ Correct', retry:'✕ Not quite — one more try',
+    theAnswer:'✕ The answer is…', yours:'You said: ', hintHead:'Hint · known for',
+    missedUnit:'Missed', missedRegion:'Regions missed',
+    perfect:'Every one. Perfect round 🇬🇧',
+    again:'Play again', reviewMissed: n => 'Just the ' + n + ' missed',
+    bestStreak:'best streak', restart:'Start again',
+    zoomIn:'Zoom in (+)', zoomOut:'Zoom out (−)',
+    fit:'Frame', fitTitle:'Frame the question (f)',
+    whole:'All UK', wholeTitle:'The whole map (0)',
+    locator:'Back to the whole map',
+    kb:['<kbd>Enter</kbd> answer / next', '<kbd>?</kbd> hint',
+        '<kbd>+</kbd><kbd>−</kbd> zoom', '<kbd>0</kbd> whole map', '<kbd>f</kbd> frame question'],
+    credit:'Boundaries: OS, ONS and OSNI data © Crown copyright and database right, ' +
+           'under the Open Government Licence.',
+  },
+};
+UK_REGIONS.forEach(r => r.ids.forEach(id => UK_REGION_OF[id] = r));
+
+// =================================================================== engine ===
+// Everything below is country-agnostic: it asks the active pack for names,
+// readings, hints and wording, and never looks at a language of its own.
+const PACKS = [PACK_JP, PACK_UK];
+let P = null;                // active pack
+let MAP = null;              // P.map — paths, viewBox, inset box
+let REGION_OF = {}, REGION_BY_KEY = {}, IDS = [];
+
+const $ = s => document.querySelector(s);
 const SVGNS = 'http://www.w3.org/2000/svg';
+const svg = $('#map');
+const gOos = $('#gOos'), gOutline = $('#gOutline'), gIn = $('#gIn');
+const labels = $('#labels'), ring = $('#ring'), locpaths = $('#locpaths');
+const insetbox = $('#insetbox'), insetlabel = $('#insetlabel');
+const gBack = $('#gBack'), backlabel = $('#backlabel'), locback = $('#locback');
+const mapwrap = document.querySelector('.mapwrap');
+const locator = $('#locator'), locvp = $('#locvp'), maptip = $('#maptip');
+const input = $('#answer'), fb = $('#fb');
 
-for (const id of IDS){
-  const p = MAP.prefs[id];
-  const el = document.createElementNS(SVGNS,'path');
-  el.setAttribute('d', p.d);
-  el.setAttribute('class','pref');
-  el.dataset.id = id;
-  gIn.appendChild(el);
-  nodes[id] = el;
+let nodes = {};              // unit id -> <path>
+const MINPPU = {};           // unit id -> px-per-unit at which its name fits
 
-  const t = document.createElementNS(SVGNS,'text');
-  t.setAttribute('class','lbl');
-  t.setAttribute('x', p.c[0]); t.setAttribute('y', p.c[1] + 5);
-  t.textContent = id === 1 ? '北海道' : p.ja.replace(SUFFIX,'');
-  labels.appendChild(t);
+// ---------- game state ----------
+let mode = 'unit';           // 'unit' = name the county/prefecture, 'region' = name the region
+let scope = null;            // filter, unit mode only
+let si = 0;                  // index into P.scopes
+let queue = [], current = null, idx = 0, score = 0, streak = 0, best = 0;
+let attempts = 0, awaitingNext = false, missed = [], hintLevel = 0, nextTimer = 0;
+const CORRECT_MS = 800;      // how long a right answer stays on screen before the next one
+let results = {};            // key -> 'correct' | 'wrong', kept for the whole round
+
+const scopeIds = () => mode === 'region' ? IDS : (scope.ids || IDS);
+const inScope = id => mode === 'region' || !scope.ids || scope.ids.includes(id);
+const keyOf = id => mode === 'region' ? REGION_OF[id].key : id;
+const isTarget = id => current !== null && keyOf(id) === current;
+const nameOf = k => mode === 'region' ? P.regionName(REGION_BY_KEY[k]) : P.nameOf(k);
+const subOf  = k => mode === 'region' ? P.regionSub(REGION_BY_KEY[k])  : P.subOf(k);
+const metaOf = k => mode === 'region' ? P.regionMeta(REGION_BY_KEY[k]) : P.metaOf(k);
+const hintsOf = k => mode === 'region' ? REGION_BY_KEY[k].hints : P.hintsOf(k);
+
+function accepted(k){
+  const list = mode === 'region' ? P.regionVariants(REGION_BY_KEY[k]) : P.unitVariants(k);
+  const set = new Set(list.map(P.norm));
+  set.delete('');
+  return set;
 }
-labels.style.display = 'none';
+
+// ---------- building the map ----------
+function buildMap(){
+  gIn.textContent = ''; gOos.textContent = ''; gOutline.textContent = '';
+  labels.textContent = ''; locpaths.textContent = '';
+  nodes = {};
+  IDS = Object.keys(MAP.units).map(Number).sort((a,b) => a-b);
+
+  const box = '0 0 ' + MAP.w + ' ' + MAP.h;
+  svg.setAttribute('viewBox', box);
+  $('#locmap').setAttribute('viewBox', box);
+
+  // Land the map has to show but the game never asks about — for the UK, the
+  // Republic of Ireland, without which the six counties float in open sea.
+  gBack.textContent = '';
+  backlabel.textContent = '';
+  locback.removeAttribute('d');
+  if (MAP.backdrop){
+    const b = document.createElementNS(SVGNS,'path');
+    b.setAttribute('d', MAP.backdrop.d);
+    gBack.appendChild(b);
+    locback.setAttribute('d', MAP.backdrop.d);
+    backlabel.setAttribute('x', MAP.backdrop.c[0]);
+    backlabel.textContent = MAP.backdrop.label;
+  }
+
+  const ins = MAP.inset;
+  for (const [k, v] of [['x',ins.x],['y',ins.y],['width',ins.w],['height',ins.h]])
+    insetbox.setAttribute(k, v);
+  insetlabel.setAttribute('x', ins.x + 9);
+  insetlabel.textContent = MAP.insetLabel;   // applyView sizes and places it
+
+  for (const id of IDS){
+    const u = MAP.units[id];
+    const el = document.createElementNS(SVGNS,'path');
+    el.setAttribute('d', u.d);
+    el.setAttribute('class','pref');
+    el.dataset.id = id;
+    gIn.appendChild(el);
+    nodes[id] = el;
+
+    const t = document.createElementNS(SVGNS,'text');
+    t.setAttribute('class','lbl');
+    t.setAttribute('x', u.c[0]); t.setAttribute('y', u.c[1] + 5);
+    t.textContent = P.mapLabel(id);
+    labels.appendChild(t);
+
+    // px the name needs / units the county spans = the px-per-unit it reads at
+    const span = Math.max(u.b[2] - u.b[0], u.b[3] - u.b[1]);
+    MINPPU[id] = Math.max(t.textContent.length * 13, 40) / span;
+
+    const o = document.createElementNS(SVGNS,'path');
+    o.setAttribute('d', u.d);
+    locpaths.appendChild(o);
+  }
+  labels.style.display = showNames ? '' : 'none';
+}
 
 // ---------- map view: one [x,y,w,h] written to the viewBox ----------
 // Strokes already carry vector-effect:non-scaling-stroke, so only text needs
 // counter-scaling; everything else holds its weight at any zoom.
-const mapwrap = document.querySelector('.mapwrap');
-const insetlabel = document.getElementById('insetlabel');
-const locator = document.getElementById('locator');
-const locvp = document.getElementById('locvp');
-const maptip = document.getElementById('maptip');
-const MAXSCALE = 12, MINPPU = {};
+const MAXSCALE = 12;
 let view = null, home = null, userFramed = false, animRAF = 0;
-
-for (const id of IDS){
-  const p = MAP.prefs[id], t = labels.children[IDS.indexOf(id)];
-  const span = Math.max(p.b[2] - p.b[0], p.b[3] - p.b[1]);
-  // px the name needs / units the prefecture spans = the px-per-unit it becomes legible at
-  MINPPU[id] = Math.max(t.textContent.length * 13, 40) / span;
-  const o = document.createElementNS(SVGNS, 'path');
-  o.setAttribute('d', p.d);
-  document.getElementById('locpaths').appendChild(o);
-}
 
 const wrapBox = () => svg.getBoundingClientRect();
 const scaleOf = () => home[2] / view[2];
 
-// the whole map, letterboxed into the current container — what the game showed before
+// the whole map, letterboxed into the current container
 function homeFrame(){
   const r = wrapBox(), a = (r.width / r.height) || 1;
   let w = MAP.w, h = MAP.w / a;
@@ -603,8 +1346,18 @@ function applyView(){
   svg.setAttribute('viewBox', view.map(n => Math.round(n * 10) / 10).join(' '));
   const ppu = wrapBox().width / view[2];           // rendered px per map unit
   labels.style.fontSize = (13 / ppu) + 'px';
-  insetlabel.style.fontSize = (15 / ppu) + 'px';
-  // a name only earns its place once its prefecture is big enough to hold it
+  // the inset label is held to 15 screen px, but never wider than its own box —
+  // otherwise it spills out over the sea once the map is drawn small on a phone
+  const insF = Math.min(15 / ppu, (MAP.inset.w - 16) / (MAP.insetLabel.length * 0.62));
+  insetlabel.style.fontSize = insF + 'px';
+  insetlabel.setAttribute('y', MAP.inset.y + MAP.inset.h - insF * 0.45);
+  if (MAP.backdrop){
+    const bd = MAP.backdrop;
+    const bF = Math.min(12 / ppu, bd.w * 0.8 / (bd.label.length * 0.62));
+    backlabel.style.fontSize = bF + 'px';
+    backlabel.setAttribute('y', bd.c[1] + bF * 0.35);
+  }
+  // a name only earns its place once its county is big enough to hold it
   for (let i = 0; i < IDS.length; i++)
     labels.children[i].style.display = ppu >= MINPPU[IDS[i]] ? '' : 'none';
   const s = scaleOf();
@@ -651,17 +1404,17 @@ function frameOn(bb, pad){
 }
 
 const bboxOf = ids => ids.reduce((a, i) => {
-  const b = MAP.prefs[i].b;
+  const b = MAP.units[i].b;
   return [Math.min(a[0],b[0]), Math.min(a[1],b[1]), Math.max(a[2],b[2]), Math.max(a[3],b[3])];
 }, [1e9, 1e9, -1e9, -1e9]);
 
-// Never tighter than the region: the prefecture alone would hand over the answer.
-// Okinawa lives in the inset box, so its region bbox would frame half the country.
+// Never tighter than the region: the county alone would hand over the answer.
+// The inset unit lives in its box, so its region's bbox would frame half the country.
 function questionBox(){
   if (mode === 'region') return null;
-  if (+current === 47) return [MAP.inset.x, MAP.inset.y,
-                               MAP.inset.x + MAP.inset.w, MAP.inset.y + MAP.inset.h];
-  const ids = REGION_OF[current].ids.filter(i => i !== 47);
+  if (+current === MAP.insetId) return [MAP.inset.x, MAP.inset.y,
+                                        MAP.inset.x + MAP.inset.w, MAP.inset.y + MAP.inset.h];
+  const ids = REGION_OF[current].ids.filter(i => i !== MAP.insetId);
   return bboxOf(ids.length ? ids : REGION_OF[current].ids);
 }
 
@@ -689,26 +1442,8 @@ function relayout(){
   applyView();
 }
 
-// ---------- game state ----------
-let mode = 'pref';           // 'pref' = name the prefecture, 'region' = name the region
-let region = ALL;            // scope filter, prefecture mode only
-let queue = [], current = null, idx = 0, score = 0, streak = 0, best = 0;
-let attempts = 0, awaitingNext = false, missed = [], hintLevel = 0, nextTimer = 0;
-const CORRECT_MS = 800;      // how long a right answer stays on screen before the next one
-let results = {};            // key -> 'correct' | 'wrong', kept for the whole round
-
-const $ = s => document.querySelector(s);
-const input = $('#answer'), fb = $('#fb');
-
-const scopeIds = () => mode === 'region' ? IDS : (region.ids || IDS);
-const inScope = id => mode === 'region' || !region.ids || region.ids.includes(id);
-const keyOf = id => mode === 'region' ? REGION_OF[id].key : id;
-const isTarget = id => current !== null && keyOf(id) === current;
-const nameOf = k => mode === 'region' ? REGION_BY_KEY[k].ja : MAP.prefs[k].ja;
-const readingOf = k => mode === 'region' ? [REGION_BY_KEY[k].kana, REGION_BY_KEY[k].romaji] : READ[k];
-const hintsOf = k => mode === 'region' ? REGION_BY_KEY[k].hints : HINTS[k];
-
-// every prefecture's colour is derived from state, so results stay painted
+// ---------- painting ----------
+// every unit's colour is derived from state, so results stay painted
 function paint(){
   for (const id of IDS){
     const c = ['pref'];
@@ -720,16 +1455,16 @@ function paint(){
   }
 }
 
-// out-of-scope fills first, then the region outline, then in-scope fills on top:
-// each in-scope path's stroke is covered by its neighbours' fills, leaving only the outer edge
+// out-of-scope fills first, then the scope outline, then in-scope fills on top:
+// each in-scope path's stroke is covered by its neighbours' fills, leaving the outer edge
 function layout(){
   const ids = scopeIds();
   gOutline.textContent = '';
   for (const id of IDS) (ids.includes(id) ? gIn : gOos).appendChild(nodes[id]);
-  if (mode === 'pref' && region.ids){
+  if (mode === 'unit' && scope.ids){
     for (const id of ids){
       const o = document.createElementNS(SVGNS,'path');
-      o.setAttribute('d', MAP.prefs[id].d);
+      o.setAttribute('d', MAP.units[id].d);
       gOutline.appendChild(o);
     }
   }
@@ -737,9 +1472,10 @@ function layout(){
 
 function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0; [a[i],a[j]]=[a[j],a[i]];} return a; }
 
+// ---------- rounds ----------
 function startRound(items){
   queue = shuffle(items ? items.slice()
-        : mode === 'region' ? REGIONS.map(r => r.key) : (region.ids || IDS).slice());
+        : mode === 'region' ? P.regions.map(r => r.key) : (scope.ids || IDS).slice());
   idx = 0; score = 0; streak = 0; missed = []; results = {}; current = null;
   $('#playView').classList.remove('hidden');
   $('#resultView').classList.add('hidden');
@@ -752,7 +1488,7 @@ function next(keepFocus){
   if (idx >= queue.length) return finish();
   current = queue[idx];
   attempts = 0; awaitingNext = false; hintLevel = 0;
-  $('#hintBtn').disabled = false; $('#hintBtn').textContent = 'ヒント';
+  $('#hintBtn').disabled = false; $('#hintBtn').textContent = P.t.hint;
   $('#revealBtn').disabled = false;
   paint(); placeRing('');
   userFramed = false; autoFrame();
@@ -761,13 +1497,13 @@ function next(keepFocus){
   // summon the keyboard over it. Rolling on mid-round keeps the box (and keyboard) live.
   if (!isPhone() || keepFocus) input.focus();
   fb.innerHTML = '';
-  $('#submitBtn').textContent = '答える';
+  $('#submitBtn').textContent = P.t.answer;
   updateStats();
 }
 
 function placeRing(cls){
-  if (mode === 'region'){ ring.setAttribute('r', 0); return; }   // the whole region is coloured already
-  const b = MAP.prefs[current].b;
+  if (mode === 'region'){ ring.setAttribute('r', 0); return; }   // the region is coloured already
+  const b = MAP.units[current].b;
   const cx = (b[0]+b[2])/2, cy = (b[1]+b[3])/2;
   const r = Math.max(Math.hypot(b[2]-b[0], b[3]-b[1]) / 2 + 26, 46);
   ring.setAttribute('cx', cx); ring.setAttribute('cy', cy); ring.setAttribute('r', r);
@@ -782,19 +1518,10 @@ function updateStats(){
 }
 
 function card(k, extra){
-  const [kana, romaji] = readingOf(k);
-  let meta;
-  if (mode === 'region'){
-    const r = REGION_BY_KEY[k];
-    meta = r.ids.length + '都道府県 · ' + r.ids.map(i => MAP.prefs[i].ja.replace(SUFFIX,'')).join('、');
-    if (r.aka) meta = '別名「' + r.aka[0] + '」 · also called ' + r.aka[1] + '<br>' + meta;
-  } else {
-    const r = REGION_OF[k];
-    meta = r.ja + '地方 · ' + r.en;
-  }
-  return '<div class="card"><div class="kanji">' + nameOf(k) + '</div>' +
-    '<div class="kana">' + kana + ' · ' + romaji.charAt(0).toUpperCase() + romaji.slice(1) + '</div>' +
-    '<div class="meta">' + meta + '</div></div>' + (extra || '');
+  const name = nameOf(k);
+  return '<div class="card"><div class="kanji' + (name.length > 15 ? ' long' : '') + '">' +
+    name + '</div><div class="kana">' + subOf(k) + '</div>' +
+    '<div class="meta">' + metaOf(k) + '</div></div>' + (extra || '');
 }
 
 function advance(){
@@ -806,13 +1533,13 @@ function submit(){
   if (awaitingNext){ advance(); return; }
   const raw = input.value.trim();
   if (!raw) return;
-  if (accepted(current).has(norm(raw))) {
+  if (accepted(current).has(P.norm(raw))) {
     score++; streak++; best = Math.max(best, streak);
     results[current] = 'correct';
     awaitingNext = true;
     paint(); placeRing('ok');
     input.className = 'ok';
-    fb.innerHTML = '<div class="verdict ok">✓ 正解！ Correct</div>' + card(current);
+    fb.innerHTML = '<div class="verdict ok">' + P.t.correct + '</div>' + card(current);
     $('#hintBtn').disabled = true; $('#revealBtn').disabled = true;
     // right answers roll straight on: the box keeps focus, so the keyboard never drops
     // and the map re-frames on the next question without another tap
@@ -821,8 +1548,8 @@ function submit(){
     attempts++; streak = 0;
     input.classList.remove('shake'); void input.offsetWidth; input.className = 'bad shake';
     if (attempts < 2) {
-      fb.innerHTML = '<div class="verdict bad">✕ ちがいます — もう一度 (1 try left)</div>' +
-        '<div class="yours">あなたの答え: <b>' + escapeHtml(raw) + '</b></div>';
+      fb.innerHTML = '<div class="verdict bad">' + P.t.retry + '</div>' +
+        '<div class="yours">' + P.t.yours + '<b>' + escapeHtml(raw) + '</b></div>';
       input.select();
     } else {
       reveal(raw);
@@ -838,8 +1565,8 @@ function reveal(raw){
   awaitingNext = true;
   paint(); placeRing('bad');
   input.disabled = true; input.className = 'bad';
-  const yours = raw ? '<div class="yours">あなたの答え: <b>' + escapeHtml(raw) + '</b></div>' : '';
-  fb.innerHTML = '<div class="verdict bad">✕ 正解は…</div>' + card(current, yours);
+  const yours = raw ? '<div class="yours">' + P.t.yours + '<b>' + escapeHtml(raw) + '</b></div>' : '';
+  fb.innerHTML = '<div class="verdict bad">' + P.t.theAnswer + '</div>' + card(current, yours);
   endQuestion();
   updateStats();
 }
@@ -848,7 +1575,7 @@ function endQuestion(){
   setSnap('half');                       // let the answer card through on a phone
   $('#hintBtn').disabled = true;
   $('#revealBtn').disabled = true;
-  $('#submitBtn').textContent = idx + 1 >= queue.length ? '結果を見る' : '次へ →';
+  $('#submitBtn').textContent = idx + 1 >= queue.length ? P.t.seeResults : P.t.next;
   $('#submitBtn').focus();
 }
 
@@ -858,11 +1585,12 @@ function hint(){
   hintLevel++;
   const rows = hintsOf(current).slice(0, hintLevel).map((h, i) =>
     '<div class="hrow' + (i ? ' more' : '') + '"><span class="hnum">' + (i+1) + '</span>' +
-    '<div><div class="fam">' + h[0] + '</div><div class="famen">' + h[1] + '</div></div></div>').join('');
-  fb.innerHTML = '<div class="verdict hint">ヒント · known for &nbsp;<span style="color:var(--dim);font-weight:400">' +
+    '<div>' + P.hintHtml(h) + '</div></div>').join('');
+  fb.innerHTML = '<div class="verdict hint">' + P.t.hintHead +
+    ' &nbsp;<span style="color:var(--dim);font-weight:400">' +
     hintLevel + '/3</span></div><div class="card">' + rows + '</div>';
   if (hintLevel >= 3) $('#hintBtn').disabled = true;
-  else $('#hintBtn').textContent = 'もっと';
+  else $('#hintBtn').textContent = P.t.more;
   if (isPhone()) { input.blur(); setSnap('full'); } else input.focus();
 }
 
@@ -875,23 +1603,21 @@ function finish(){
   if (view) easeTo(home.slice(), 320);
   setSnap('full');
   const pct = Math.round(score / queue.length * 100);
-  const rows = missed.map(k => {
-    const [kana, romaji] = readingOf(k);
-    return '<div class="missrow"><span>' + nameOf(k) + '</span><span>' + kana + ' · ' + romaji + '</span></div>';
-  }).join('');
+  const rows = missed.map(k =>
+    '<div class="missrow"><span>' + nameOf(k) + '</span><span>' + subOf(k) + '</span></div>').join('');
   $('#playView').classList.add('hidden');
   const rv = $('#resultView');
   rv.classList.remove('hidden');
-  const label = mode === 'region' ? '地方' : region.ja;
+  const label = mode === 'region' ? P.t.titleRegion : scope.name;
   rv.innerHTML = '<div class="results">' +
     '<div><div class="big">' + score + ' / ' + queue.length + '</div>' +
-    '<div class="sub" style="margin-top:6px">' + pct + '% · 最長連続 ' + best + '</div></div>' +
+    '<div class="sub" style="margin-top:6px">' + pct + '% · ' + P.t.bestStreak + ' ' + best + '</div></div>' +
     (missed.length
-      ? '<div><div class="prompt">まちがえた' + (mode === 'region' ? '地方' : '都道府県') +
+      ? '<div><div class="prompt">' + (mode === 'region' ? P.t.missedRegion : P.t.missedUnit) +
         ' (' + missed.length + ')</div><div class="misslist">' + rows + '</div></div>'
-      : '<div class="verdict ok">全問正解！ Perfect round 🎌</div>') +
-    '<div class="row"><button class="primary" id="againBtn">もう一度 (' + label + ')</button>' +
-    (missed.length ? '<button id="reviewBtn">まちがえた' + missed.length + '問だけ</button>' : '') +
+      : '<div class="verdict ok">' + P.t.perfect + '</div>') +
+    '<div class="row"><button class="primary" id="againBtn">' + P.t.again + ' (' + label + ')</button>' +
+    (missed.length ? '<button id="reviewBtn">' + P.t.reviewMissed(missed.length) + '</button>' : '') +
     '</div></div>';
   $('#againBtn').onclick = () => startRound();
   const rb = $('#reviewBtn'); if (rb) { const m = missed.slice(); rb.onclick = () => startRound(m); }
@@ -902,11 +1628,50 @@ function finish(){
 
 function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// ---------- chrome that follows the active pack ----------
+function applyStrings(){
+  const t = P.t, isRegion = mode === 'region';
+  document.documentElement.lang = P.lang;
+  document.title = t.docTitle;
+  $('#countryBtn').textContent = P.chip;
+  $('#modeBtn').textContent = isRegion ? t.toRegion : t.toUnit;
+  $('#scopeBtn').classList.toggle('hidden', isRegion);
+  $('#scopeBtn').textContent = scope.label;
+  $('#hTitle').textContent = isRegion ? t.titleRegion : t.titleUnit;
+  $('#hSub').textContent = isRegion ? t.subRegion : t.subUnit;
+  $('#prompt').innerHTML = isRegion ? t.promptRegion : t.promptUnit;
+  input.placeholder = isRegion ? t.phRegion : t.phUnit;
+  $('#namesBtn').textContent = showNames ? t.hideNames : t.showNames;
+  $('#zInBtn').title = t.zoomIn;
+  $('#zOutBtn').title = t.zoomOut;
+  $('#zFitBtn').textContent = t.fit;   $('#zFitBtn').title = t.fitTitle;
+  $('#zHomeBtn').textContent = t.whole; $('#zHomeBtn').title = t.wholeTitle;
+  locator.title = t.locator;
+  $('#foot').innerHTML = t.kb.map(k => '<span class="kbhint">' + k + '</span>').join('') +
+    '<span id="restartFoot" style="cursor:pointer;text-decoration:underline">' + t.restart + '</span>' +
+    (t.credit ? '<span class="credit">' + t.credit + '</span>' : '');
+  $('#restartFoot').onclick = () => startRound();
+}
+
+function setPack(pack){
+  P = pack;
+  MAP = P.map;
+  REGION_OF = {}; REGION_BY_KEY = {};
+  P.regions.forEach(r => { REGION_BY_KEY[r.key] = r; r.ids.forEach(id => REGION_OF[id] = r); });
+  si = 0; scope = P.scopes[0];
+  mode = 'unit';
+  best = 0;
+  buildMap();
+  applyStrings();
+  view = null; home = null;
+  syncLayout();
+  startRound();
+}
+
 // ---------- controls ----------
 $('#submitBtn').onclick = submit;
 $('#hintBtn').onclick = hint;
 $('#revealBtn').onclick = () => { if (!awaitingNext) reveal(input.value.trim()); };
-$('#restartFoot').onclick = () => startRound();
 
 input.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); submit(); }
@@ -917,26 +1682,20 @@ document.addEventListener('keydown', e => {
   if (e.key === '?') { e.preventDefault(); hint(); }
 });
 
+$('#countryBtn').onclick = () => {
+  setPack(PACKS[(PACKS.indexOf(P) + 1) % PACKS.length]);
+};
+
 $('#modeBtn').onclick = () => {
-  mode = mode === 'pref' ? 'region' : 'pref';
-  const isRegion = mode === 'region';
-  $('#modeBtn').textContent = isRegion ? '地方を当てる' : '都道府県を当てる';
-  $('#regionBtn').classList.toggle('hidden', isRegion);
-  $('#hTitle').textContent = isRegion ? '地方クイズ' : '都道府県クイズ';
-  $('#hSub').textContent = isRegion ? 'Name the highlighted region' : 'Name the highlighted prefecture';
-  $('#prompt').innerHTML = isRegion
-    ? 'オレンジ色の地方は？ &nbsp;·&nbsp; kanji, kana or romaji'
-    : 'オレンジ色の都道府県は？ &nbsp;·&nbsp; kanji, kana or romaji';
-  input.placeholder = isRegion ? '例: 関東 / かんとう / kanto' : '例: 三重県 / みえ / mie';
+  mode = mode === 'unit' ? 'region' : 'unit';
+  applyStrings();
   startRound();
 };
 
-let ri = 0;
-const SCOPES = [ALL, ...REGIONS];
-$('#regionBtn').onclick = () => {
-  ri = (ri + 1) % SCOPES.length;
-  region = SCOPES[ri];
-  $('#regionBtn').textContent = region.ja + ' · ' + region.en;
+$('#scopeBtn').onclick = () => {
+  si = (si + 1) % P.scopes.length;
+  scope = P.scopes[si];
+  $('#scopeBtn').textContent = scope.label;
   startRound();
 };
 
@@ -945,7 +1704,7 @@ $('#namesBtn').onclick = () => {
   showNames = !showNames;
   labels.style.display = showNames ? '' : 'none';
   $('#namesBtn').classList.toggle('on', showNames);
-  $('#namesBtn').textContent = showNames ? '名前を隠す' : '名前を表示';
+  $('#namesBtn').textContent = showNames ? P.t.hideNames : P.t.showNames;
 };
 
 svg.addEventListener('mousemove', e => {
@@ -957,8 +1716,7 @@ svg.addEventListener('mousemove', e => {
 // ---------- map: pan, zoom, and tap-to-inspect ----------
 let tipTimer = 0;
 function showInfo(id){
-  maptip.innerHTML = '<b>' + MAP.prefs[id].ja + '</b> &nbsp;<span>' + READ[id][0] + ' · ' +
-    READ[id][1] + ' · ' + REGION_OF[id].ja + '地方</span>';
+  maptip.innerHTML = P.tipOf(id);
   maptip.classList.add('on');
   clearTimeout(tipTimer);
   tipTimer = setTimeout(() => maptip.classList.remove('on'), 2800);
@@ -1088,7 +1846,7 @@ function snapHeight(name, h, kb){
 function syncLayout(){
   const phone = isPhone();
   // the chips sit over the map on a desktop and in the sheet's grip on a phone,
-  // where the map's top-left corner belongs to Hokkaido and the Okinawa inset
+  // where the map's top corner belongs to the far north and the inset box
   const host = phone ? $('#chipslot') : $('#chipHome');
   if (chipbar.parentNode !== host) host.appendChild(chipbar);
   if (!phone){
@@ -1162,8 +1920,7 @@ phoneMQ.addEventListener('change', syncLayout);
 window.addEventListener('resize', syncLayout);
 window.addEventListener('orientationchange', () => setTimeout(syncLayout, 250));
 
-syncLayout();
-startRound();
+setPack(PACKS[0]);
 </script>
 </body>
 </html>
